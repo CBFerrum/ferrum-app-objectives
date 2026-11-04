@@ -53,6 +53,7 @@ export function Home() {
         <Link to="/e/Objective/new">New objective</Link>
       </header>
       <section className="card card-pad stack" aria-label="The tree">
+        {q.data.objectives.length === 0 && <p className="faint">No objectives yet: start with the one the others serve.</p>}
         <ul className="stack">
           {tree(q.data.objectives).map(({ row: o, depth }) => (
             <li key={o.id} style={{ marginLeft: depth * 24 }} className="stack">
