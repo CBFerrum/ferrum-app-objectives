@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+From a browser walk: an objective's owner is whoever records it, unless they name someone (it was
+left empty and refused).
+
 ## 0.1.0
 
 Portfolio and objectives (FERRUM-ECOSYSTEM-011).

@@ -13,7 +13,7 @@
   description: What is to be achieved in a period, aligned to an objective above it. Its progress is its key results' and the objectives under it, on average.
   fields:
     - {name: title, type: data, required: true, in_list: true}
-    - {name: owner, type: email, required: true, in_list: true, in_filter: true}
+    - {name: owner, type: email, required: true, default_expr: "user.email", in_list: true, in_filter: true, description: "Who answers for it: whoever records it, unless they name someone"}
     - {name: parent, type: link, to: Objective, in_list: true, label: Aligned To}
     - {name: portfolio, type: link, to: Portfolio, in_filter: true}
     - {name: starts_on, type: date, required: true, in_list: true}

@@ -120,6 +120,11 @@ async fn scenario() {
     let objective = |title: &str, parent: Option<Uuid>, from: chrono::NaiveDate, to: chrono::NaiveDate| json!({"title": title, "owner": "ceo@goals.test", "parent": parent.map(|p| p.to_string()), "portfolio": portfolio.to_string(), "starts_on": from.to_string(), "ends_on": to.to_string()});
     refused(t.k.insert(&owner, "Objective", obj(objective("Backwards", None, q_end, q_start))).await, "invalid", "after the objective starts");
     let grow = uid(&t.insert(&owner, "Objective", objective("Grow the business", None, q_start, q_end)).await["id"]);
+    let mut unnamed = objective("Whose is it", None, q_start, q_end);
+    unnamed.as_object_mut().unwrap().remove("owner");
+    let whose = t.insert(&owner, "Objective", unnamed).await;
+    assert_eq!(whose["owner"], "ceo@goals.test", "whoever records it, unless they name someone");
+    t.k.delete(&t.admin, "Objective", uid(&whose["id"]), None).await.unwrap();
     refused(
         t.k.insert(&owner, "Objective", obj(objective("Too long", Some(grow), q_start, q_end + Duration::days(1)))).await,
         "invalid",
