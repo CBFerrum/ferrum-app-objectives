@@ -1,0 +1,28 @@
+package: objectives
+version: 0.1.0
+label: Objectives
+description: "Objectives aligned to their parents, key results measured by check-ins, progress rolled up, and the projects and portfolios behind them"
+depends: [core, project_records, projects]
+
+modules:
+  - name: objectives
+    label: Objectives
+    icon: folder-kanban
+    order: 60
+    items: [Objective, KeyResult, CheckIn]
+
+roles:
+  - name: Objectives Owner
+    description: Sets objectives and their key results, checks in on them and closes them.
+    permissions:
+      - {entity: Objective, read: true, write: true, create: true, export: true}
+      - {entity: KeyResult, read: true, write: true, create: true, export: true}
+      - {entity: CheckIn, read: true, write: true, create: true}
+      - {entity: Project, read: true}
+      - {entity: Portfolio, read: true}
+  - name: Objectives Viewer
+    description: Follows the objectives, their key results and check-ins.
+    permissions:
+      - {entity: Objective, read: true}
+      - {entity: KeyResult, read: true}
+      - {entity: CheckIn, read: true}

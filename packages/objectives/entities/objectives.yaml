@@ -1,0 +1,63 @@
+- name: KeyResultProject
+  label: Project
+  kind: child
+  fields:
+    - {name: project, type: link, to: Project, required: true, in_list: true}
+
+- name: Objective
+  label: Objective
+  label_plural: Objectives
+  kind: master
+  module: objectives
+  title_field: title
+  description: What is to be achieved in a period, aligned to an objective above it. Its progress is its key results' and the objectives under it, on average.
+  fields:
+    - {name: title, type: data, required: true, in_list: true}
+    - {name: owner, type: email, required: true, in_list: true, in_filter: true}
+    - {name: parent, type: link, to: Objective, in_list: true, label: Aligned To}
+    - {name: portfolio, type: link, to: Portfolio, in_filter: true}
+    - {name: starts_on, type: date, required: true, in_list: true}
+    - {name: ends_on, type: date, required: true, in_list: true}
+    - {name: progress, type: percent, read_only: true, no_copy: true, in_list: true}
+    - {name: status, type: select, options: [Active, Closed], default: Active, read_only: true, no_copy: true, in_list: true, in_filter: true}
+    - {name: score, type: percent, read_only: true, no_copy: true, description: "Its progress when it closed"}
+    - {name: notes, type: text}
+  actions:
+    - {name: close_objective, label: Close It, permission: write, condition: "doc.status == 'Active'"}
+  list: {columns: [title, owner, parent, ends_on, progress, status], sort: ends_on asc}
+
+- name: KeyResult
+  label: Key Result
+  label_plural: Key Results
+  kind: master
+  module: objectives
+  title_field: title
+  description: How an objective is measured, from a start to a target. Check-ins move it; its progress is how far along that way it is.
+  fields:
+    - {name: objective, type: link, to: Objective, required: true, in_list: true, in_filter: true}
+    - {name: title, type: data, required: true, in_list: true}
+    - {name: kind, type: select, options: [Increase, Decrease, Milestone], default: Increase, required: true, in_list: true}
+    - {name: start_value, type: decimal, default: 0}
+    - {name: target_value, type: decimal, default: 1}
+    - {name: current_value, type: decimal, read_only: true, no_copy: true, in_list: true}
+    - {name: unit, type: data, description: "customers, %, days"}
+    - {name: progress, type: percent, read_only: true, no_copy: true, in_list: true}
+    - {name: confidence, type: select, options: [On Track, At Risk, Off Track], read_only: true, no_copy: true, in_list: true, in_filter: true, description: "From the last check-in"}
+    - {name: projects, type: table, of: KeyResultProject, description: "The work that moves it"}
+  list: {columns: [objective, title, current_value, target_value, progress, confidence], sort: created_at asc}
+
+- name: CheckIn
+  label: Check-in
+  label_plural: Check-ins
+  kind: master
+  module: objectives
+  title_field: key_result
+  description: Where a key result stands on a day, and how confident its owner is; its latest by day is the key result's.
+  fields:
+    - {name: key_result, type: link, to: KeyResult, required: true, in_list: true, in_filter: true}
+    - {name: date, type: date, required: true, in_list: true}
+    - {name: value, type: decimal, required: true, in_list: true, description: "For a milestone, 1 when it is done"}
+    - {name: confidence, type: select, options: [On Track, At Risk, Off Track], default: On Track, required: true, in_list: true}
+    - {name: note, type: text}
+    - {name: author, type: email, read_only: true, no_copy: true}
+  list: {columns: [key_result, date, value, confidence, author], sort: date desc}
