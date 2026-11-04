@@ -1,0 +1,33 @@
+id: objectives
+name: Objectives
+version: 0.1.0
+publisher: cbferrum
+summary: "Objectives aligned to their parents, key results measured by check-ins, progress rolled up, and the projects and portfolios behind them"
+description: README.md
+categories: [projects, productivity]
+license: AGPL-3.0-only
+homepage: https://github.com/CBFerrum/ferrum-app-objectives
+support: https://github.com/CBFerrum/ferrum-app-objectives/issues
+runtime: native
+platform: ">=0.3.2, <0.4"
+# Portfolios and projects are Projects': installing it installs Projects.
+requires: {projects: ">=0.6"}
+packages: [objectives]
+uninstall: ask
+# Its own interface at /objectives/: the objectives as a tree with their progress.
+ui:
+  dist: ui/dist
+contributes:
+  shell.app:
+    - id: objectives
+      route: objectives
+      title: Objectives
+      description: Objectives, key results and check-ins
+      icon: folder-kanban
+      color: "#15803d"
+      roles: [Objectives Owner, Objectives Viewer]
+  shell.open:
+    - {id: objectives, package: objectives, path: "objectives/e/{entity}/{id}", list: "objectives/e/{entity}"}
+  shell.create:
+    - {id: objective, label: Objective, path: objectives/e/Objective/new, entity: Objective}
+    - {id: checkin, label: Check-in, path: objectives/e/CheckIn/new, entity: CheckIn}
