@@ -52,6 +52,7 @@ cd ui && npm run build && npm run check
 
 | Version | Highlights |
 |---|---|
+| **0.1.2** | Rebuilt with Ferrum-Frontend 80ff179: labels name their fields, and linked titles show their titles. |
 | **0.1.1** | An objective's owner is whoever records it, unless they name someone. |
 | **0.1.0** | Objectives aligned to their parents, key results measured by check-ins, progress rolled up, and the projects and portfolios behind them (FERRUM-ECOSYSTEM-011). |
 
