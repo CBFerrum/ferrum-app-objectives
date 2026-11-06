@@ -85,6 +85,7 @@ Metrics:
 
 | Version | Highlights |
 |---|---|
+| **0.5.4** | Rebuilt with Ferrum-Frontend 63280d3: right to left, pages mirror; the records pages' words in Arabic and Hindi. |
 | **0.5.3** | Rebuilt with Ferrum-Frontend a64416a: a box whose default is 1 shows ticked; action dialogs say every refusal and ask once. |
 | **0.5.2** | The review over every key result and check-in, not one page of 500. |
 | **0.5.1** | Rebuilt with Ferrum-Frontend a76295e: times on a person's own clock when they chose one. |
