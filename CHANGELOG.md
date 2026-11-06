@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+The workspace's day, not UTC's: a check-in may be dated up to the workspace's today, and the day's
+measure and reminders count days where the workspace is. Its test runs in a workspace whose date is
+not UTC's.
+
 ## 0.2.0
 
 Key results measured from the records, and reminders to check in (FERRUM-ECOSYSTEM-011).
