@@ -64,6 +64,7 @@ cd ui && npm run build && npm run check
 
 | Version | Highlights |
 |---|---|
+| **0.2.1** | Dates are the workspace's, not UTC's. |
 | **0.2.0** | Key results measured from the records with their owner's rights: when saved, each day and at each check-in. Reminders to check in. |
 | **0.1.4** | Rebuilt with Ferrum-Frontend 00dea07: a workflow state's kept fields are read-only, its needed ones required. |
 | **0.1.3** | Rebuilt with Ferrum-Frontend daeadda: actions say what they did. |
