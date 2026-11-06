@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.3
+
+Rebuilt with Ferrum-Frontend a64416a: a new record's box whose default is 1 shows ticked, as it is saved. An action's dialog says every refusal, the errors on what the action made (another record's rows) among them, and an action with parameters and a confirmation asks once.
+
 ## 0.5.2
 
 The review page read key results and check-ins as one list: it asked for 2,000, the server pages at 500, so with more check-ins than that the progress since the day reviewed from was worked out from some of them. It now reads every page.
