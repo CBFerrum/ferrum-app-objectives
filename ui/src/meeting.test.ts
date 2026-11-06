@@ -46,4 +46,22 @@ describe("weights", () => {
     expect(weighted([[80, 0]])).toBe(0);
     expect(weighted([])).toBeNull();
   });
+
+  it("reads every page of check-ins, not the first 500", async () => {
+    const { every } = await import("./Review");
+    const pages: Record<string, { rows: Row[]; next_cursor?: string | null }> = {
+      "": { rows: [{ id: "a" }, { id: "b" }], next_cursor: "c2" },
+      c2: { rows: [{ id: "c" }] },
+    };
+    const asked: Record<string, unknown>[] = [];
+    const got = await every("CheckIn", [], {}, async (_e, q) => {
+      asked.push(q);
+      return pages[String(q.cursor ?? "")];
+    });
+    expect(got.map((r) => r.id)).toEqual(["a", "b", "c"]);
+    expect(asked.map((q) => [q.cursor, q.sort, q.limit])).toEqual([
+      [undefined, "created_at desc", 500],
+      ["c2", "created_at desc", 500],
+    ]);
+  });
 });
