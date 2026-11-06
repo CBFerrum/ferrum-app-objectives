@@ -124,9 +124,8 @@ async fn scenario() {
     let steward = t.user("steward@goals.test", &["Data Steward"]).await;
 
     // ───────────── the work counted, and a metric certified ─────────────
-    let currency =
-        t.k.list(&a, "Currency", &ListQuery { filters: ferrum_kernel::query::parse_filters(&json!({"code": "INR"})).unwrap(), ..Default::default() });
-    let inr = currency.await.unwrap().rows;
+    let currency = ListQuery { filters: ferrum_kernel::query::parse_filters(&json!({"code": "INR"})).unwrap(), ..Default::default() };
+    let inr = t.k.list(&a, "Currency", &currency).await.unwrap().rows;
     let company = uid(&t.insert(&a, "Company", json!({"company_name": "Goal Co", "abbr": "GC", "default_currency": inr[0]["id"]})).await["id"]);
     let project = |name: &str| json!({"project_name": name, "company": company.to_string()});
     t.insert(&a, "Project", project("Launch the app")).await;
