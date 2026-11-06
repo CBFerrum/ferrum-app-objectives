@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2
+
+The review page read key results and check-ins as one list: it asked for 2,000, the server pages at 500, so with more check-ins than that the progress since the day reviewed from was worked out from some of them. It now reads every page.
+
 ## 0.5.1
 
 Rebuilt with Ferrum-Frontend a76295e: its pages show times on a person's own clock when they chose one on their Account page, while today and due dates stay on the workspace's day.
