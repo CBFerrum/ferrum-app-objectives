@@ -85,6 +85,7 @@ Metrics:
 
 | Version | Highlights |
 |---|---|
+| **0.5.1** | Rebuilt with Ferrum-Frontend a76295e: times on a person's own clock when they chose one. |
 | **0.5.0** | Weights on key results and objectives in the roll-up and the review; scores told on 0 to 100 or 0.0 to 1.0 and graded Missed, Progress Made or Achieved. |
 | **0.4.0** | The review meeting's page: each active objective's change since a day, those at risk first; dates on the workspace's day. |
 | **0.3.1** | Rebuilt with Ferrum-Frontend 24c3951: times on the workspace's clock; drafts headed as drafts. |

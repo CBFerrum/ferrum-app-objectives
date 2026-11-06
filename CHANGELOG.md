@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+
+Rebuilt with Ferrum-Frontend a76295e: its pages show times on a person's own clock when they chose one on their Account page, while today and due dates stay on the workspace's day.
+
 ## 0.5.0
 
 Weights and grades (FERRUM-ECOSYSTEM-011).
