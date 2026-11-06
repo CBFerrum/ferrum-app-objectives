@@ -76,6 +76,7 @@ Metrics:
 
 | Version | Highlights |
 |---|---|
+| **0.3.1** | Rebuilt with Ferrum-Frontend 24c3951: times on the workspace's clock; drafts headed as drafts. |
 | **0.3.0** | With Metrics, key results measured by a certified metric they name, as it is defined now (connector `objectives-metrics`). |
 | **0.2.2** | Rebuilt with Ferrum-Frontend bb60115: empty numbers read as the server reads them; settings open as their record. |
 | **0.2.1** | Dates are the workspace's, not UTC's. |
