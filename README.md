@@ -2,7 +2,8 @@
 
 Portfolio and objectives for [Ferrum](https://github.com/CBFerrum/Ferrum):
 - objectives aligned to the objectives above them, each in a period;
-- key results measured from a start to a target by check-ins;
+- key results measured from a start to a target by check-ins, or from the records;
+- reminders to check in;
 - progress rolled up the tree;
 - the projects and portfolios behind them, from Projects.
 
@@ -22,6 +23,14 @@ Portfolio and objectives for [Ferrum](https://github.com/CBFerrum/Ferrum):
   decrease, or done for a milestone. Its progress is how far along that way it is, from 0 to 100.
 - **Check-ins.** A check-in records a value and a confidence on a day within the objective's
   period, never ahead of today. The latest by day is the key result's value and confidence.
+- **Measured from the records.** A key result may name a Studio query of one measure, as a
+  metric is defined (deals won, tickets closed). Its owner's rights read it, so only someone who
+  can read what it counts can own it. It is measured when saved, by itself once a day, and
+  whenever someone checks in to say how confident they are. A day it cannot be measured, the
+  reason stays on the key result.
+- **Reminders.** The owner of a key result checked in by hand is reminded in the app once a
+  check-in is due, every 7 days unless set otherwise (0 for never), and again only when the next
+  one is.
 - **Rolled up.** An objective's progress is the average of its key results' and of the
   objectives aligned to it, kept current up the tree as any of them moves.
 - **Closing.** A closed objective keeps its progress as its score, and takes no more key results
@@ -39,19 +48,23 @@ cd ui && npm run build && npm run check
 - a company objective with two aligned under it, and loops and long periods refused;
 - key results that increase, decrease and finish;
 - check-ins rolling progress up the tree;
+- a key result measured from projects as it is saved, at a check-in and by the day's upkeep,
+  and refused to an owner who cannot read them;
+- reminders to check in, once until the next is due;
 - an objective moved, and one closed;
 - who may do what.
 
 ## Not yet
 
 - Weights on key results, and scoring scales other than 0 to 100.
-- Key results measured from other records (deals won, tickets closed) without check-ins.
-- Reminders to check in, and a review meeting's view.
+- A review meeting's view.
+- Key results read from a certified metric by its name, rather than a query of their own.
 
 ## Changelog
 
 | Version | Highlights |
 |---|---|
+| **0.2.0** | Key results measured from the records with their owner's rights: when saved, each day and at each check-in. Reminders to check in. |
 | **0.1.4** | Rebuilt with Ferrum-Frontend 00dea07: a workflow state's kept fields are read-only, its needed ones required. |
 | **0.1.3** | Rebuilt with Ferrum-Frontend daeadda: actions say what they did. |
 | **0.1.2** | Rebuilt with Ferrum-Frontend 80ff179: labels name their fields, and linked titles show their titles. |
