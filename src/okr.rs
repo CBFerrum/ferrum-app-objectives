@@ -4,10 +4,12 @@
 //!   or done for a milestone. Its value and confidence are its latest check-in's by day; its
 //!   progress is how far along that way it is, from 0 to 100.
 //! * An objective's progress is the average of its key results' and of the objectives aligned to
-//!   it, rolled up the tree whenever one of them moves. An objective under another falls within its
-//!   period (the kernel keeps the tree from looping).
+//!   it, each counted by its weight (1 unless set; 0 counts for nothing), rolled up the tree
+//!   whenever one of them moves. An objective under another falls within its period (the kernel
+//!   keeps the tree from looping).
 //! * Check-ins fall within their objective's period and not after today, and a closed objective
-//!   takes none; closing it keeps its progress as its score.
+//!   takes none; closing it keeps its progress as its score, told on the workspace's scale (0 to
+//!   100, or 0.0 to 1.0) and graded Missed, Progress Made or Achieved by its settings' bands.
 //! * A key result may be measured from the records: a Studio query of one measure, as a metric is
 //!   defined, or, with Metrics' connector, a certified metric it names, read as the metric is
 //!   defined now (and not once it is no longer certified); either is read with its owner's rights.
@@ -26,6 +28,32 @@ use rust_decimal::Decimal;
 use serde_json::{Value, json};
 use std::collections::HashSet;
 use uuid::Uuid;
+
+/// The average of `parts` (progress, weight) by their weights, to one decimal; 0 when nothing weighs.
+pub(crate) fn weighted(parts: &[(Decimal, Decimal)]) -> Decimal {
+    let total: Decimal = parts.iter().map(|(_, w)| *w).sum();
+    if total <= Decimal::ZERO {
+        return Decimal::ZERO;
+    }
+    round(parts.iter().map(|(p, w)| *p * *w).sum::<Decimal>() / total, 1)
+}
+
+/// A score from 0 to 100 told on `scale`, and graded by the bands from which it is Progress Made
+/// and Achieved.
+pub(crate) fn graded(score: Decimal, scale: &str, progress_from: Decimal, achieved_from: Decimal) -> (String, &'static str) {
+    let shown = match scale {
+        "0.0 to 1.0" => format!("{} of 1.0", round(score / Decimal::ONE_HUNDRED, 2).normalize()),
+        _ => format!("{} of 100", score.normalize()),
+    };
+    let grade = if score >= achieved_from {
+        "Achieved"
+    } else if score >= progress_from {
+        "Progress Made"
+    } else {
+        "Missed"
+    };
+    (shown, grade)
+}
 
 /// How far a key result of `kind` has come from `start` towards `target`, from 0 to 100.
 pub(crate) fn progress(kind: &str, start: Decimal, target: Decimal, current: Decimal) -> Decimal {
@@ -228,15 +256,16 @@ pub(crate) async fn roll_up(k: &Kernel, ctx: &Ctx, tx: &mut Tx, objective: Uuid)
         if !seen.insert(o) {
             break;
         }
-        let parts: Vec<Option<Decimal>> = sqlx::query_scalar(
-            "select progress from e_key_result where tenant_id = $1 and objective = $2 union all select progress from e_objective where tenant_id = $1 and parent = $2",
+        let parts: Vec<(Option<Decimal>, Option<Decimal>)> = sqlx::query_as(
+            "select progress, weight from e_key_result where tenant_id = $1 and objective = $2 \
+             union all select progress, weight from e_objective where tenant_id = $1 and parent = $2",
         )
         .bind(ctx.tenant)
         .bind(o)
         .fetch_all(&mut **tx)
         .await?;
-        let p =
-            if parts.is_empty() { Decimal::ZERO } else { round(parts.iter().map(|p| p.unwrap_or_default()).sum::<Decimal>() / Decimal::from(parts.len()), 1) };
+        let parts: Vec<(Decimal, Decimal)> = parts.into_iter().map(|(p, w)| (p.unwrap_or_default(), w.unwrap_or(Decimal::ONE))).collect();
+        let p = weighted(&parts);
         k.set_values_tx(ctx, tx, "Objective", o, obj(json!({"progress": money(p)}))).await?;
         next = sqlx::query_scalar("select parent from e_objective where tenant_id = $1 and id = $2")
             .bind(ctx.tenant)
@@ -257,6 +286,9 @@ impl DocHook for ObjectiveHook {
     }
 
     async fn validate(&self, hc: &mut HookCtx<'_>, doc: &Doc) -> Result<()> {
+        if d(doc, "weight") < Decimal::ZERO {
+            return Err(Error::field("weight", "is 0 or more"));
+        }
         let (from, to) = (day(doc, "starts_on"), day(doc, "ends_on"));
         if let (Some(f), Some(t)) = (from, to)
             && t <= f
@@ -303,8 +335,17 @@ impl DocHook for ObjectiveHook {
         }
         let objective = id(doc, "id").ok_or_else(|| Error::internal("an objective without an id"))?;
         let score = d(doc, "progress");
-        hc.kernel.set_values_tx(&elevated(hc.ctx), hc.tx, "Objective", objective, obj(json!({"status": "Closed", "score": money(score)}))).await?;
-        Ok(Some(json!({"status": "Closed", "score": money(score)})))
+        let set: Option<(Option<String>, Option<Decimal>, Option<Decimal>)> =
+            sqlx::query_as("select scale, progress_from, achieved_from from e_objectives_settings where tenant_id = $1 limit 1")
+                .bind(hc.ctx.tenant)
+                .fetch_optional(&mut **hc.tx)
+                .await?;
+        let (scale, progress_from, achieved_from) = set.unwrap_or_default();
+        let (shown, grade) =
+            graded(score, scale.as_deref().unwrap_or("0 to 100"), progress_from.unwrap_or(Decimal::from(40)), achieved_from.unwrap_or(Decimal::from(70)));
+        let values = json!({"status": "Closed", "score": money(score), "score_on_scale": shown, "grade": grade});
+        hc.kernel.set_values_tx(&elevated(hc.ctx), hc.tx, "Objective", objective, obj(values.clone())).await?;
+        Ok(Some(values))
     }
 }
 
@@ -364,6 +405,9 @@ impl DocHook for KeyResultHook {
     }
 
     async fn validate(&self, hc: &mut HookCtx<'_>, doc: &Doc) -> Result<()> {
+        if d(doc, "weight") < Decimal::ZERO {
+            return Err(Error::field("weight", "is 0 or more"));
+        }
         let (start, target) = (d(doc, "start_value"), d(doc, "target_value"));
         match s(doc, "kind") {
             Some("Increase") if target <= start => return Err(Error::field("target_value", "an increase aims above where it starts")),
@@ -520,7 +564,7 @@ impl DocHook for CheckInHook {
 
 #[cfg(test)]
 mod tests {
-    use super::{measure_of, progress};
+    use super::{graded, measure_of, progress, weighted};
     use rust_decimal::Decimal;
     use serde_json::json;
 
@@ -548,5 +592,19 @@ mod tests {
         assert_eq!(progress("Increase", v("100"), v("200"), v("90")), v("0.0"), "below the start is nothing");
         assert_eq!(progress("Decrease", v("30"), v("10"), v("25")), v("25.0"));
         assert_eq!((progress("Milestone", v("0"), v("1"), v("0")), progress("Milestone", v("0"), v("1"), v("1"))), (v("0.0"), v("100.0")));
+    }
+
+    #[test]
+    fn weights_and_grades() {
+        let v = |s: &str| s.parse::<rust_decimal::Decimal>().unwrap();
+        assert_eq!(weighted(&[(v("100"), v("1")), (v("0"), v("1"))]), v("50.0"), "equal weights are the plain average");
+        assert_eq!(weighted(&[(v("100"), v("3")), (v("0"), v("1"))]), v("75.0"));
+        assert_eq!(weighted(&[(v("100"), v("0")), (v("20"), v("1"))]), v("20.0"), "a weight of 0 counts for nothing");
+        assert_eq!(weighted(&[(v("80"), v("0"))]), v("0"), "nothing weighs");
+        assert_eq!(weighted(&[]), v("0"));
+        assert_eq!(graded(v("72.5"), "0 to 100", v("40"), v("70")), ("72.5 of 100".to_string(), "Achieved"));
+        assert_eq!(graded(v("65"), "0.0 to 1.0", v("40"), v("70")), ("0.65 of 1.0".to_string(), "Progress Made"));
+        assert_eq!(graded(v("30"), "0.0 to 1.0", v("40"), v("70")), ("0.3 of 1.0".to_string(), "Missed"));
+        assert_eq!(graded(v("100"), "0.0 to 1.0", v("40"), v("70")).0, "1 of 1.0");
     }
 }

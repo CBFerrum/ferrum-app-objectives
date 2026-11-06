@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { change, daysBefore, progressOf, review, valueOn, type Row } from "./meeting";
+import { change, daysBefore, progressOf, review, valueOn, weighted, type Row } from "./meeting";
 
 describe("the review meeting", () => {
   it("works progress out as the server does", () => {
@@ -35,5 +35,15 @@ describe("the review meeting", () => {
     expect([r[2].then, r[2].now, change(r[2].then, r[2].now), r[0].risk]).toEqual([50, 80, "+30", 2]);
     expect([change(50, 46.5), change(10, 10), change(null, 3)]).toEqual(["−3.5", "0", ""]);
     expect(daysBefore("2026-11-06", 14)).toBe("2026-10-23");
+  });
+});
+
+describe("weights", () => {
+  it("count each key result by its weight, as the server does", () => {
+    expect(weighted([[100, 1], [0, 1]])).toBe(50);
+    expect(weighted([[100, 3], [0, 1]])).toBe(75);
+    expect(weighted([[100, 0], [20, 1]])).toBe(20);
+    expect(weighted([[80, 0]])).toBe(0);
+    expect(weighted([])).toBeNull();
   });
 });

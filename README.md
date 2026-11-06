@@ -37,10 +37,13 @@ Portfolio and objectives for [Ferrum](https://github.com/CBFerrum/Ferrum):
 - **Reminders.** The owner of a key result checked in by hand is reminded in the app once a
   check-in is due, every 7 days unless set otherwise (0 for never), and again only when the next
   one is.
-- **Rolled up.** An objective's progress is the average of its key results' and of the
-  objectives aligned to it, kept current up the tree as any of them moves.
-- **Closing.** A closed objective keeps its progress as its score, and takes no more key results
-  or check-ins.
+- **Rolled up, by weight.** An objective's progress is the average of its key results' and of the
+  objectives aligned to it, each counted by its weight (1 unless set; 0 counts for nothing), kept
+  current up the tree as any of them moves. The review page weighs them the same way.
+- **Closing, scored and graded.** A closed objective keeps its progress as its score, and takes no
+  more key results or check-ins. Its score is told on the workspace's scale (Objectives Settings:
+  0 to 100, or 0.0 to 1.0) and graded Missed, Progress Made (from 40 unless set) or Achieved (from
+  70 unless set).
 - **Behind them.** Key results name the projects that move them, and objectives their portfolio.
 - **The review meeting.** The Review page (`/objectives/review`) lists each active objective with
   its key results, those at risk first and then the furthest behind. Each shows how far it has
@@ -62,7 +65,8 @@ cd ui && npm run build && npm run check
 - a key result measured from projects as it is saved, at a check-in and by the day's upkeep,
   and refused to an owner who cannot read them;
 - reminders to check in, once until the next is due;
-- an objective moved, and one closed;
+- an objective moved; weights on a key result and an objective, 0 counting for nothing;
+- objectives closed on the 0.0 to 1.0 scale: achieved, progress made and missed;
 - who may do what.
 
 `tests/metrics_it.rs` (`FERRUM_OBJECTIVES_METRICS_TEST_DATABASE_URL`) runs the connector with
@@ -74,12 +78,14 @@ Metrics:
 
 ## Not yet
 
-- Weights on key results, and scoring scales other than 0 to 100.
+- Scales beyond 0 to 100 and 0.0 to 1.0 (letters, or 1 to 5), and grades of key results
+  themselves: an objective is graded when it closes.
 
 ## Changelog
 
 | Version | Highlights |
 |---|---|
+| **0.5.0** | Weights on key results and objectives in the roll-up and the review; scores told on 0 to 100 or 0.0 to 1.0 and graded Missed, Progress Made or Achieved. |
 | **0.4.0** | The review meeting's page: each active objective's change since a day, those at risk first; dates on the workspace's day. |
 | **0.3.1** | Rebuilt with Ferrum-Frontend 24c3951: times on the workspace's clock; drafts headed as drafts. |
 | **0.3.0** | With Metrics, key results measured by a certified metric they name, as it is defined now (connector `objectives-metrics`). |
