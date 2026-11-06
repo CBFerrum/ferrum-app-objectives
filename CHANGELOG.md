@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0
+
+Weights and grades (FERRUM-ECOSYSTEM-011).
+
+- **Weight** on a key result and on an objective: how much it counts towards the objective above
+  it, against the others there (1 unless set; 0 counts for nothing; never below 0). Progress rolls
+  up by these weights, and the review page weighs key results the same way.
+- **Objectives Settings:** the scale a closed objective's score is told on (0 to 100, or 0.0 to
+  1.0), and the bands it is graded by: Progress Made from 40 and Achieved from 70 unless set.
+- **Closing** keeps the score as before, and now its score on the scale ("0.65 of 1.0") and its
+  grade (Missed, Progress Made or Achieved).
+
 ## 0.4.0
 
 The review meeting's page (FERRUM-ECOSYSTEM-011).

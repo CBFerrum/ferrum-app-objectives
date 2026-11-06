@@ -10,7 +10,7 @@
   kind: master
   module: objectives
   title_field: title
-  description: What is to be achieved in a period, aligned to an objective above it. Its progress is its key results' and the objectives under it, on average.
+  description: What is to be achieved in a period, aligned to an objective above it. Its progress is its key results' and the objectives under it, on average by their weights; closed, its score is graded on the workspace's scale.
   fields:
     - {name: title, type: data, required: true, in_list: true}
     - {name: owner, type: email, required: true, default_expr: "user.email", in_list: true, in_filter: true, description: "Who answers for it: whoever records it, unless they name someone"}
@@ -18,9 +18,12 @@
     - {name: portfolio, type: link, to: Portfolio, in_filter: true}
     - {name: starts_on, type: date, required: true, in_list: true}
     - {name: ends_on, type: date, required: true, in_list: true}
+    - {name: weight, type: decimal, default: 1, description: "How much it counts towards the objective it is aligned to, against the others there; 0 for not at all"}
     - {name: progress, type: percent, read_only: true, no_copy: true, in_list: true}
     - {name: status, type: select, options: [Active, Closed], default: Active, read_only: true, no_copy: true, in_list: true, in_filter: true}
     - {name: score, type: percent, read_only: true, no_copy: true, description: "Its progress when it closed"}
+    - {name: score_on_scale, type: data, read_only: true, no_copy: true, label: Scored, description: "Its score on the workspace's scale when it closed"}
+    - {name: grade, type: select, options: [Missed, Progress Made, Achieved], read_only: true, no_copy: true, in_list: true, in_filter: true, description: "Its score against the workspace's grades when it closed"}
     - {name: notes, type: text}
   actions:
     - {name: close_objective, label: Close It, permission: write, condition: "doc.status == 'Active'"}
@@ -41,6 +44,7 @@
     - {name: target_value, type: decimal, default: 1}
     - {name: current_value, type: decimal, read_only: true, no_copy: true, in_list: true}
     - {name: unit, type: data, description: "customers, %, days"}
+    - {name: weight, type: decimal, default: 1, in_list: true, description: "How much it counts towards its objective's progress, against the others there; 0 for not at all"}
     - {name: progress, type: percent, read_only: true, no_copy: true, in_list: true}
     - {name: confidence, type: select, options: [On Track, At Risk, Off Track], read_only: true, no_copy: true, in_list: true, in_filter: true, description: "From the last check-in"}
     - {name: last_check_in, type: date, read_only: true, no_copy: true, description: "The day of its latest check-in"}
@@ -69,3 +73,13 @@
     - {name: author, type: email, read_only: true, no_copy: true}
     - {name: measured, type: check, read_only: true, no_copy: true, in_list: true, description: "Its value was measured from the records, with the key result's owner's rights"}
   list: {columns: [key_result, date, value, measured, confidence, author], sort: date desc}
+
+- name: ObjectivesSettings
+  label: Objectives Settings
+  kind: settings
+  module: objectives
+  description: "How a closed objective's score is told: on which scale, and from what score it has made progress or is achieved."
+  fields:
+    - {name: scale, type: select, options: ["0 to 100", "0.0 to 1.0"], default: "0 to 100", required: true, description: "0.0 to 1.0 is scoring as many teams grade objectives and key results"}
+    - {name: progress_from, type: percent, default: 40, required: true, label: Progress Made From, description: "A score from here is Progress Made; below it, Missed"}
+    - {name: achieved_from, type: percent, default: 70, required: true, label: Achieved From, description: "A score from here is Achieved"}
