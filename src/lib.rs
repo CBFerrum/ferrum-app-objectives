@@ -4,7 +4,8 @@
 //!
 //! * `okr`: key results' progress from their latest check-in, objectives' progress as the average
 //!   of their key results and the objectives aligned to them, alignment that never loops, periods
-//!   within the parent's, and closing with a score.
+//!   within the parent's, and closing with a score; key results measured from the records with
+//!   their owner's rights, and reminders to check in on the others.
 //!
 //! This app's own design; no code was copied (docs/PROVENANCE.md). Hooks are registered per entity,
 //! so a workspace without the `objectives` package never runs them.
@@ -12,9 +13,10 @@
 mod okr;
 
 use ferrum_domain::reports::ReportSource;
-use ferrum_kernel::{Doc, HookRegistry, Kernel, Result};
+use ferrum_kernel::{Doc, Error, HookRegistry, Kernel, Result};
 use serde_json::Value;
 use std::sync::Arc;
+use uuid::Uuid;
 
 include!(concat!(env!("OUT_DIR"), "/packages.rs"));
 include!(concat!(env!("OUT_DIR"), "/ui.rs"));
@@ -40,9 +42,19 @@ pub fn reports() -> Vec<Arc<dyn ReportSource>> {
     vec![]
 }
 
-/// Upkeep: nothing runs by itself.
-pub async fn maintenance(_k: &Kernel) -> Result<()> {
-    Ok(())
+/// Upkeep, in each workspace with the package: the day's measure of key results measured from the
+/// records, and reminders to check in on the others.
+pub async fn maintenance(k: &Kernel) -> Result<()> {
+    let mut tx = k.db.system_tx().await?;
+    let tenants: Vec<Uuid> = sqlx::query_scalar("select id from tenant where status = 'active' order by id").fetch_all(&mut *tx).await?;
+    tx.commit().await?;
+    let mut first_error: Option<Error> = None;
+    for tenant in tenants {
+        if let Err(e) = okr::upkeep(k, tenant).await {
+            first_error.get_or_insert(e);
+        }
+    }
+    first_error.map_or(Ok(()), Err)
 }
 
 /// A document from JSON.

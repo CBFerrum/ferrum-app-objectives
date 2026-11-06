@@ -8,12 +8,19 @@
 //!   period (the kernel keeps the tree from looping).
 //! * Check-ins fall within their objective's period and not after today, and a closed objective
 //!   takes none; closing it keeps its progress as its score.
+//! * A key result may be measured from the records: a Studio query of one measure, as a metric is
+//!   defined, read with its owner's rights. Its check-ins then have their values measured, not
+//!   typed: one each day by itself (a failure kept on the key result), and one whenever someone
+//!   checks in, to say how confident they are.
+//! * The owners of key results checked in by hand are reminded, in the app, once a check-in is
+//!   due, and again each time another is.
 
 use crate::obj;
 use async_trait::async_trait;
 use chrono::{NaiveDate, Utc};
-use ferrum_domain::util::{d, elevated, id, money, round, s};
-use ferrum_kernel::{Ctx, Doc, DocHook, Error, HookCtx, Kernel, Result, Tx};
+use ferrum_domain::util::{b, d, elevated, id, money, round, s, sys};
+use ferrum_kernel::{Ctx, Doc, DocHook, Error, HookCtx, Kernel, Result, Tx, notify};
+use ferrum_studio::spec::Spec;
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
 use std::collections::HashSet;
@@ -38,6 +45,146 @@ pub(crate) fn progress(kind: &str, start: Decimal, target: Decimal, current: Dec
 
 fn day(doc: &Doc, k: &str) -> Option<NaiveDate> {
     s(doc, k).and_then(|v| NaiveDate::parse_from_str(v.get(..10).unwrap_or(v), "%Y-%m-%d").ok())
+}
+
+/// A key result's measure: a Studio query of one measure, ungrouped (a metric's form), if it has
+/// one.
+pub(crate) fn measure_of(doc: &Doc) -> Result<Option<Spec>> {
+    let raw = match doc.get("measure") {
+        None | Some(Value::Null) => return Ok(None),
+        Some(Value::String(t)) if t.trim().is_empty() => return Ok(None),
+        Some(Value::String(t)) => serde_json::from_str(t).map_err(|e| Error::field("measure", format!("is not a Studio query: {e}")))?,
+        Some(v) => v.clone(),
+    };
+    let spec: Spec = serde_json::from_value(raw).map_err(|e| Error::field("measure", format!("is not a Studio query: {e}")))?;
+    if spec.measures.len() != 1 || !spec.group_by.is_empty() || spec.pivot.is_some() || spec.time_series.is_some() {
+        return Err(Error::field("measure", "is one measure, ungrouped"));
+    }
+    Ok(Some(spec))
+}
+
+/// What the records say for `spec`, read with the rights of `owner`, who must be an active person
+/// here.
+async fn measured(k: &Kernel, tx: &mut Tx, tenant: Uuid, owner: &str, spec: &Spec) -> Result<Decimal> {
+    let user: Option<Uuid> = sqlx::query_scalar("select id from app_user where tenant_id = $1 and is_active and lower(email::text) = lower($2)")
+        .bind(tenant)
+        .bind(owner)
+        .fetch_optional(&mut **tx)
+        .await?;
+    let user = user.ok_or_else(|| Error::field("owner", format!("{owner} is not an active person here, so nothing is measured with their rights")))?;
+    let ctx = k.load_ctx(tenant, user, None, "objectives.measure".into()).await?;
+    let out = ferrum_studio::run::run(k, &ctx, spec).await.map_err(|e| Error::field("measure", format!("its owner cannot read it: {}", said(&e))))?;
+    let key = out["columns"].as_array().and_then(|c| c.last()).and_then(|c| c["name"].as_str()).unwrap_or_default().to_string();
+    let cell = out["rows"].as_array().and_then(|r| r.first()).map(|r| r[&key].clone()).unwrap_or(Value::Null);
+    Ok(match cell {
+        Value::String(v) => v.parse().unwrap_or_default(),
+        Value::Number(n) => n.to_string().parse().unwrap_or_default(),
+        _ => Decimal::ZERO,
+    })
+}
+
+/// An error as a person reads it, a refused field's message included.
+fn said(e: &Error) -> String {
+    match e {
+        Error::Validation(fields) => fields.iter().map(|f| format!("{}: {}", f.field, f.message)).collect::<Vec<_>>().join("; "),
+        other => other.to_string(),
+    }
+}
+
+/// Today's check-in measured from the records, when the key result's objective is active and in
+/// its period; its confidence stays the last check-in's. Whether one was made.
+async fn measure_today(k: &Kernel, ctx: &Ctx, tx: &mut Tx, kr: Uuid) -> Result<bool> {
+    let today = Utc::now().date_naive();
+    let open: Option<Option<String>> = sqlx::query_scalar(
+        "select kr.confidence from e_key_result kr join e_objective o on o.tenant_id = kr.tenant_id and o.id = kr.objective \
+         where kr.tenant_id = $1 and kr.id = $2 and o.status = 'Active' and $3 between o.starts_on and o.ends_on",
+    )
+    .bind(ctx.tenant)
+    .bind(kr)
+    .bind(today)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let Some(confidence) = open else { return Ok(false) };
+    let confidence = confidence.unwrap_or_else(|| "On Track".into());
+    k.insert_tx(ctx, tx, "CheckIn", obj(json!({"key_result": kr.to_string(), "date": today.to_string(), "confidence": confidence}))).await?;
+    Ok(true)
+}
+
+/// A workspace's upkeep: today's measure of each key result measured from the records (tried once
+/// a day, its failure kept on the key result), then a reminder to the owner of each key result
+/// checked in by hand whose check-in is due, once until another is.
+pub(crate) async fn upkeep(k: &Kernel, tenant: Uuid) -> Result<()> {
+    let schema = k.registry.schema(tenant).await?;
+    if !schema.packages.iter().any(|p| p == "objectives") {
+        return Ok(());
+    }
+    let ctx = Ctx::system(tenant, schema);
+    let today = Utc::now().date_naive();
+    let mut tx = k.db.tenant_tx(tenant).await?;
+    let due: Vec<Uuid> = sqlx::query_scalar(
+        "select kr.id from e_key_result kr join e_objective o on o.tenant_id = kr.tenant_id and o.id = kr.objective \
+         where kr.tenant_id = $1 and jsonb_typeof(kr.measure) = 'object' and o.status = 'Active' and $2 between o.starts_on and o.ends_on \
+         and kr.last_check_in is distinct from $2 and (kr.measured_on is null or kr.measured_on < $2) order by kr.id",
+    )
+    .bind(tenant)
+    .bind(today)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    for kr in due {
+        // Each in a transaction of its own: one that cannot be measured leaves the others measured.
+        let mut tx = k.db.tenant_tx(tenant).await?;
+        let error = match measure_today(k, &ctx, &mut tx, kr).await {
+            Ok(_) => {
+                tx.commit().await?;
+                None
+            }
+            Err(e) => {
+                tx.rollback().await?;
+                Some(said(&e))
+            }
+        };
+        let mut tx = k.db.tenant_tx(tenant).await?;
+        k.set_values_tx(&ctx, &mut tx, "KeyResult", kr, obj(json!({"measured_on": today.to_string(), "measure_error": error}))).await?;
+        tx.commit().await?;
+    }
+    let mut tx = k.db.tenant_tx(tenant).await?;
+    let late: Vec<(Uuid, String, Option<String>)> = sqlx::query_as(
+        "select kr.id, kr.title, coalesce(kr.owner, o.owner)::text from e_key_result kr join e_objective o on o.tenant_id = kr.tenant_id and o.id = kr.objective \
+         where kr.tenant_id = $1 and jsonb_typeof(kr.measure) is distinct from 'object' and o.status = 'Active' and $2 between o.starts_on and o.ends_on \
+         and coalesce(kr.check_in_every, 7) > 0 \
+         and coalesce(kr.last_check_in, (select max(c.\"date\") from e_check_in c where c.tenant_id = kr.tenant_id and c.key_result = kr.id), \
+                      greatest(kr.created_at::date, o.starts_on)) <= $2 - coalesce(kr.check_in_every, 7)::int \
+         and (kr.reminded_on is null or kr.reminded_on <= $2 - coalesce(kr.check_in_every, 7)::int) order by kr.id",
+    )
+    .bind(tenant)
+    .bind(today)
+    .fetch_all(&mut *tx)
+    .await?;
+    for (kr, title, owner) in late {
+        let user: Option<Uuid> = sqlx::query_scalar("select id from app_user where tenant_id = $1 and is_active and lower(email::text) = lower($2)")
+            .bind(tenant)
+            .bind(owner.unwrap_or_default())
+            .fetch_optional(&mut *tx)
+            .await?;
+        if let Some(user) = user {
+            notify::send_kind(
+                &mut tx,
+                tenant,
+                user,
+                "objectives.check_in",
+                "inapp",
+                &format!("Time to check in on {title}"),
+                None,
+                Some("KeyResult"),
+                Some(kr),
+            )
+            .await?;
+        }
+        k.set_values_tx(&ctx, &mut tx, "KeyResult", kr, obj(json!({"reminded_on": today.to_string()}))).await?;
+    }
+    tx.commit().await?;
+    Ok(())
 }
 
 /// An objective's progress from its key results and the objectives aligned to it, then its
@@ -149,10 +296,32 @@ impl DocHook for KeyResultHook {
     }
 
     fn fills(&self) -> &'static [&'static str] {
-        &["current_value", "progress"]
+        &["current_value", "progress", "owner", "measure"]
     }
 
-    async fn before_validate(&self, _hc: &mut HookCtx<'_>, doc: &mut Doc) -> Result<()> {
+    async fn before_validate(&self, hc: &mut HookCtx<'_>, doc: &mut Doc) -> Result<()> {
+        // A measure sent as text is kept as the query it says, as the form sends it.
+        if let Some(Value::String(text)) = doc.get("measure") {
+            let query = if text.trim().is_empty() {
+                Value::Null
+            } else {
+                serde_json::from_str(text).map_err(|e| Error::field("measure", format!("is not a Studio query: {e}")))?
+            };
+            doc.insert("measure".into(), query);
+        }
+        if s(doc, "owner").is_none()
+            && let Some(objective) = id(doc, "objective")
+        {
+            let owner: Option<String> = sqlx::query_scalar("select owner::text from e_objective where tenant_id = $1 and id = $2")
+                .bind(hc.ctx.tenant)
+                .bind(objective)
+                .fetch_optional(&mut **hc.tx)
+                .await?
+                .flatten();
+            if let Some(owner) = owner {
+                doc.insert("owner".into(), json!(owner.to_lowercase()));
+            }
+        }
         if doc.get("current_value").is_none_or(Value::is_null) {
             let start = if s(doc, "kind") == Some("Milestone") { Decimal::ZERO } else { d(doc, "start_value") };
             doc.insert("current_value".into(), money(start));
@@ -175,8 +344,27 @@ impl DocHook for KeyResultHook {
         Ok(())
     }
 
+    async fn validate_change(&self, hc: &mut HookCtx<'_>, old: Option<&Doc>, doc: &Doc) -> Result<()> {
+        // Whoever sets a measure can read what it counts; its owner's rights measure it.
+        if old.is_none_or(|o| o.get("measure") != doc.get("measure"))
+            && let Some(spec) = measure_of(doc)?
+            && !hc.ctx.is_system
+        {
+            ferrum_studio::query::compile(hc.ctx, &spec).map_err(|e| Error::field("measure", format!("does not run: {}", said(&e))))?;
+        }
+        Ok(())
+    }
+
     async fn after_save(&self, hc: &mut HookCtx<'_>, doc: &Doc, old: Option<&Doc>) -> Result<()> {
         let system = elevated(hc.ctx);
+        // A new measure, or a new owner whose rights read it, is measured now.
+        let changed = |k: &str| old.is_none_or(|o| o.get(k) != doc.get(k));
+        if measure_of(doc)?.is_some()
+            && (changed("measure") || changed("owner"))
+            && let Some(kr) = id(doc, "id")
+        {
+            measure_today(hc.kernel, &system, hc.tx, kr).await?;
+        }
         if let Some(o) = id(doc, "objective") {
             roll_up(hc.kernel, &system, hc.tx, o).await?;
         }
@@ -198,10 +386,38 @@ impl DocHook for CheckInHook {
     }
 
     fn fills(&self) -> &'static [&'static str] {
-        &["author"]
+        &["author", "value", "measured"]
     }
 
     async fn before_validate(&self, hc: &mut HookCtx<'_>, doc: &mut Doc) -> Result<()> {
+        // A new check-in on a key result measured from the records has its value measured, with the
+        // key result's owner's rights; a check-in already kept is not measured again.
+        let kept = match id(doc, "id") {
+            Some(me) => sqlx::query_scalar::<_, i32>("select 1 from e_check_in where tenant_id = $1 and id = $2")
+                .bind(hc.ctx.tenant)
+                .bind(me)
+                .fetch_optional(&mut **hc.tx)
+                .await?
+                .is_some(),
+            None => false,
+        };
+        if !kept && let Some(kr) = id(doc, "key_result") {
+            let result = hc.kernel.get_tx(&sys(hc.ctx), hc.tx, "KeyResult", kr, false).await?;
+            let spec = measure_of(&result)?;
+            doc.insert("measured".into(), json!(spec.is_some()));
+            if let Some(spec) = spec {
+                if doc.get("value").is_some_and(|v| !v.is_null()) {
+                    return Err(Error::field("value", "is measured from the records: leave it empty"));
+                }
+                let owner = s(&result, "owner").unwrap_or_default().to_string();
+                let v = measured(hc.kernel, hc.tx, hc.ctx.tenant, &owner, &spec).await?;
+                doc.insert("value".into(), money(v));
+                // The day's own measure is its owner's: theirs are the rights that read it.
+                if hc.ctx.is_system && s(doc, "author").is_none() && !owner.is_empty() {
+                    doc.insert("author".into(), json!(owner));
+                }
+            }
+        }
         if s(doc, "author").is_none() && !hc.ctx.email.is_empty() {
             doc.insert("author".into(), json!(hc.ctx.email));
         }
@@ -209,6 +425,9 @@ impl DocHook for CheckInHook {
     }
 
     async fn validate(&self, hc: &mut HookCtx<'_>, doc: &Doc) -> Result<()> {
+        if doc.get("value").is_none_or(Value::is_null) && !b(doc, "measured") {
+            return Err(Error::field("value", "is required"));
+        }
         let on = day(doc, "date").ok_or_else(|| Error::field("date", "is required"))?;
         if on > Utc::now().date_naive() {
             return Err(Error::field("date", "is today or before"));
@@ -234,17 +453,25 @@ impl DocHook for CheckInHook {
     async fn after_save(&self, hc: &mut HookCtx<'_>, doc: &Doc, _old: Option<&Doc>) -> Result<()> {
         let Some(kr) = id(doc, "key_result") else { return Ok(()) };
         let system = elevated(hc.ctx);
-        let latest: Option<(Decimal, String)> =
-            sqlx::query_as("select value, confidence from e_check_in where tenant_id = $1 and key_result = $2 order by \"date\" desc, created_at desc limit 1")
-                .bind(hc.ctx.tenant)
-                .bind(kr)
-                .fetch_optional(&mut **hc.tx)
-                .await?;
-        let Some((value, confidence)) = latest else { return Ok(()) };
+        let latest: Option<(Option<Decimal>, String, NaiveDate)> = sqlx::query_as(
+            "select value, confidence, \"date\" from e_check_in where tenant_id = $1 and key_result = $2 order by \"date\" desc, created_at desc limit 1",
+        )
+        .bind(hc.ctx.tenant)
+        .bind(kr)
+        .fetch_optional(&mut **hc.tx)
+        .await?;
+        let Some((value, confidence, on)) = latest else { return Ok(()) };
+        let value = value.unwrap_or_default();
         let result = hc.kernel.get_tx(&system, hc.tx, "KeyResult", kr, true).await?;
         let p = progress(s(&result, "kind").unwrap_or("Increase"), d(&result, "start_value"), d(&result, "target_value"), value);
         hc.kernel
-            .set_values_tx(&system, hc.tx, "KeyResult", kr, obj(json!({"current_value": money(value), "confidence": confidence, "progress": money(p)})))
+            .set_values_tx(
+                &system,
+                hc.tx,
+                "KeyResult",
+                kr,
+                obj(json!({"current_value": money(value), "confidence": confidence, "progress": money(p), "last_check_in": on.to_string()})),
+            )
             .await?;
         if let Some(o) = id(&result, "objective") {
             roll_up(hc.kernel, &system, hc.tx, o).await?;
@@ -255,8 +482,25 @@ impl DocHook for CheckInHook {
 
 #[cfg(test)]
 mod tests {
-    use super::progress;
+    use super::{measure_of, progress};
     use rust_decimal::Decimal;
+    use serde_json::json;
+
+    #[test]
+    fn a_measure_is_one_measure_ungrouped() {
+        let doc = |v: serde_json::Value| v.as_object().cloned().unwrap();
+        assert!(measure_of(&doc(json!({}))).unwrap().is_none());
+        assert!(measure_of(&doc(json!({"measure": null}))).unwrap().is_none());
+        assert!(measure_of(&doc(json!({"measure": " "}))).unwrap().is_none());
+        let won = measure_of(&doc(json!({"measure": {"entity": "Opportunity", "filters": {"status": "Won"}, "measures": [{"fn": "count"}]}}))).unwrap();
+        assert_eq!(won.unwrap().entity, "Opportunity");
+        let typed = measure_of(&doc(json!({"measure": r#"{"entity": "Project", "measures": [{"fn": "count"}]}"#}))).unwrap();
+        assert_eq!(typed.unwrap().entity, "Project", "as the form sends it, as text");
+        assert!(measure_of(&doc(json!({"measure": "not a query"}))).is_err());
+        assert!(measure_of(&doc(json!({"measure": {"entity": "Project", "measures": [{"fn": "count"}, {"fn": "count"}]}}))).is_err());
+        assert!(measure_of(&doc(json!({"measure": {"entity": "Project", "measures": []}}))).is_err());
+        assert!(measure_of(&doc(json!({"measure": {"entity": "Project", "group_by": [{"field": "status"}], "measures": [{"fn": "count"}]}}))).is_err());
+    }
 
     #[test]
     fn how_far_a_key_result_has_come() {
