@@ -9,8 +9,21 @@ import { api, docPath, formatMoment, todayIso } from "@ferrum/client";
 import { Badge, ErrorState, PageLoading, useShellTitle } from "@ferrum/kit";
 import { change, daysBefore, review, type Row } from "./meeting";
 
-const rows = (entity: string, filters: unknown[], extra: Record<string, string | number> = {}) =>
-  api.get<{ rows: Row[] }>(docPath(entity), { filters: JSON.stringify(filters), limit: 2000, ...extra }).then((r) => r.rows);
+type Get = (entity: string, query: Record<string, string | number | undefined>) => Promise<{ rows: Row[]; next_cursor?: string | null }>;
+const get: Get = (entity, query) => api.get(docPath(entity), query);
+
+/** Every matching row, page after page by cursor: the server pages at 500, and cursors need the
+ * creation order. */
+export async function every(entity: string, filters: unknown[], extra: Record<string, string> = {}, fetchPage: Get = get): Promise<Row[]> {
+  const out: Row[] = [];
+  let cursor: string | undefined;
+  do {
+    const p = await fetchPage(entity, { filters: JSON.stringify(filters), limit: 500, sort: "created_at desc", cursor, ...extra });
+    out.push(...p.rows);
+    cursor = p.next_cursor ?? undefined;
+  } while (cursor);
+  return out;
+}
 
 const TONE: Record<string, "green" | "amber" | "red"> = { "On Track": "green", "At Risk": "amber", "Off Track": "red" };
 
@@ -24,9 +37,9 @@ export function Review() {
     queryKey: ["objectives", "review"],
     queryFn: async () => {
       const [objectives, results, checkIns] = await Promise.all([
-        rows("Objective", [["status", "eq", "Active"]], { sort: "title asc" }),
-        rows("KeyResult", []),
-        rows("CheckIn", [["date", "<=", today]], { fields: "key_result,date,value,created_at" }),
+        every("Objective", [["status", "eq", "Active"]]).then((list) => list.sort((a, b) => String(a.title).localeCompare(String(b.title)))),
+        every("KeyResult", []),
+        every("CheckIn", [["date", "<=", today]], { fields: "id,key_result,date,value,created_at" }),
       ]);
       return { objectives, results, checkIns };
     },
