@@ -2,7 +2,8 @@
 
 Portfolio and objectives for [Ferrum](https://github.com/CBFerrum/Ferrum):
 - objectives aligned to the objectives above them, each in a period;
-- key results measured from a start to a target by check-ins, or from the records;
+- key results measured from a start to a target by check-ins, or from the records (with Metrics,
+  by a certified metric they name);
 - reminders to check in;
 - progress rolled up the tree;
 - the projects and portfolios behind them, from Projects.
@@ -10,7 +11,7 @@ Portfolio and objectives for [Ferrum](https://github.com/CBFerrum/Ferrum):
 | | |
 |---|---|
 | 🎯 App | `objectives`, native, in the server |
-| 🧩 Package | `objectives` (needs Projects) |
+| 🧩 Package | `objectives` (needs Projects); with Metrics, the connector `objectives-metrics` (package `objectives_metrics`) |
 | 🖥️ Interface | its own, at `/objectives/`: the objectives as a tree with their progress and key results |
 | 🔐 Roles | Objectives Owner, Objectives Viewer |
 | 📜 Licence | AGPL-3.0-only |
@@ -28,6 +29,11 @@ Portfolio and objectives for [Ferrum](https://github.com/CBFerrum/Ferrum):
   can read what it counts can own it. It is measured when saved, by itself once a day, and
   whenever someone checks in to say how confident they are. A day it cannot be measured, the
   reason stays on the key result.
+- **By a certified metric.** With Metrics installed, the connector Objectives and Metrics
+  (`objectives-metrics`) lets a key result name a certified metric instead of a query of its own.
+  It is measured as the metric is defined now, with the key result's owner's rights. A metric
+  changed back to draft, or deprecated, measures nothing until it is certified again: the day's
+  upkeep keeps why, and a check-in is refused saying so.
 - **Reminders.** The owner of a key result checked in by hand is reminded in the app once a
   check-in is due, every 7 days unless set otherwise (0 for never), and again only when the next
   one is.
@@ -54,16 +60,23 @@ cd ui && npm run build && npm run check
 - an objective moved, and one closed;
 - who may do what.
 
+`tests/metrics_it.rs` (`FERRUM_OBJECTIVES_METRICS_TEST_DATABASE_URL`) runs the connector with
+Metrics:
+- a key result naming a certified metric, measured as it is saved, at a check-in and each day;
+- a draft metric, or a query of its own as well, refused;
+- the metric changed back to draft, measuring nothing with the reason kept, then measured again
+  as it is defined now once certified anew.
+
 ## Not yet
 
 - Weights on key results, and scoring scales other than 0 to 100.
 - A review meeting's view.
-- Key results read from a certified metric by its name, rather than a query of their own.
 
 ## Changelog
 
 | Version | Highlights |
 |---|---|
+| **0.3.0** | With Metrics, key results measured by a certified metric they name, as it is defined now (connector `objectives-metrics`). |
 | **0.2.2** | Rebuilt with Ferrum-Frontend bb60115: empty numbers read as the server reads them; settings open as their record. |
 | **0.2.1** | Dates are the workspace's, not UTC's. |
 | **0.2.0** | Key results measured from the records with their owner's rights: when saved, each day and at each check-in. Reminders to check in. |

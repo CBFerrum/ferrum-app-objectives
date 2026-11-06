@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.0
+
+Key results measured by a certified metric (FERRUM-ECOSYSTEM-011, -010).
+
+- **Objectives and Metrics** (`objectives-metrics`, package `objectives_metrics`): a connector that
+  ships with Objectives and is offered where Metrics is installed. A key result may name a certified
+  metric (Certified Metric) instead of a query of its own, never both. It is measured as the metric
+  is defined now, with the key result's owner's rights: when saved, at each check-in, and by the
+  day's upkeep.
+- A metric that is no longer certified (changed back to draft, or deprecated) measures nothing.
+  The day's upkeep keeps why on the key result, a check-in is refused saying so, and naming one is
+  refused.
+- Objectives' owners and viewers read certified metrics, to name them and see them named.
+- The page marks key results measured by a certified metric, and never asks them for a check-in.
+
 ## 0.2.2
 
 Rebuilt with Ferrum-Frontend bb60115: a record page reads an empty number or check as the server does, so an action whose condition needs one shows, and a workspace's settings open as their one record.

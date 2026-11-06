@@ -25,6 +25,8 @@ uuid = { version = "1.10", features = ["v4", "v7", "serde"] }
 # that its interface is a release the platform takes.
 ferrum-app-erp = { git = "https://github.com/CBFerrum/ferrum-app-erp", branch = "main" }
 ferrum-app-projects = { git = "https://github.com/CBFerrum/ferrum-app-projects", branch = "main" }
+# Its connector with Metrics is tested on Metrics' certified metrics.
+ferrum-app-metrics = { git = "https://github.com/CBFerrum/ferrum-app-metrics", branch = "main" }
 ferrum-apps = { git = "https://github.com/CBFerrum/Ferrum", branch = "main" }
 tokio = { version = "1.45", features = ["rt-multi-thread", "macros", "sync", "time", "signal"] }
 
