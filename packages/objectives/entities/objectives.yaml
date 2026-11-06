@@ -32,7 +32,7 @@
   kind: master
   module: objectives
   title_field: title
-  description: How an objective is measured, from a start to a target. Check-ins move it; its progress is how far along that way it is.
+  description: How an objective is measured, from a start to a target. Check-ins move it, typed by its owner or measured from the records; its progress is how far along that way it is.
   fields:
     - {name: objective, type: link, to: Objective, required: true, in_list: true, in_filter: true}
     - {name: title, type: data, required: true, in_list: true}
@@ -43,8 +43,15 @@
     - {name: unit, type: data, description: "customers, %, days"}
     - {name: progress, type: percent, read_only: true, no_copy: true, in_list: true}
     - {name: confidence, type: select, options: [On Track, At Risk, Off Track], read_only: true, no_copy: true, in_list: true, in_filter: true, description: "From the last check-in"}
+    - {name: last_check_in, type: date, read_only: true, no_copy: true, description: "The day of its latest check-in"}
+    - {name: owner, type: email, in_list: true, in_filter: true, description: "Who checks in on it and is reminded to: its objective's owner, unless someone is named"}
+    - {name: measure, type: json, label: Measured From, description: "A Studio query of one measure, ungrouped, as a metric is defined. When set, it is measured from the records with its owner's rights: each day, and at each check-in"}
+    - {name: check_in_every, type: int, default: 7, label: Check In Every (Days), description: "Days without a check-in before its owner is reminded; 0 for never. One measured from the records needs no reminding"}
+    - {name: reminded_on, type: date, read_only: true, no_copy: true, description: "When its owner was last reminded to check in"}
+    - {name: measured_on, type: date, read_only: true, no_copy: true, hidden: true}
+    - {name: measure_error, type: text, read_only: true, no_copy: true, description: "Why it could not be measured from the records the last time the day's measure was taken"}
     - {name: projects, type: table, of: KeyResultProject, description: "The work that moves it"}
-  list: {columns: [objective, title, current_value, target_value, progress, confidence], sort: created_at asc}
+  list: {columns: [objective, title, owner, current_value, target_value, progress, confidence], sort: created_at asc}
 
 - name: CheckIn
   label: Check-in
@@ -52,12 +59,13 @@
   kind: master
   module: objectives
   title_field: key_result
-  description: Where a key result stands on a day, and how confident its owner is; its latest by day is the key result's.
+  description: Where a key result stands on a day, and how confident its owner is; its latest by day is the key result's. A key result measured from the records has its value measured, not typed.
   fields:
     - {name: key_result, type: link, to: KeyResult, required: true, in_list: true, in_filter: true}
     - {name: date, type: date, required: true, in_list: true}
-    - {name: value, type: decimal, required: true, in_list: true, description: "For a milestone, 1 when it is done"}
+    - {name: value, type: decimal, in_list: true, description: "For a milestone, 1 when it is done. Left empty for a key result measured from the records: it is measured when the check-in is saved"}
     - {name: confidence, type: select, options: [On Track, At Risk, Off Track], default: On Track, required: true, in_list: true}
     - {name: note, type: text}
     - {name: author, type: email, read_only: true, no_copy: true}
-  list: {columns: [key_result, date, value, confidence, author], sort: date desc}
+    - {name: measured, type: check, read_only: true, no_copy: true, in_list: true, description: "Its value was measured from the records, with the key result's owner's rights"}
+  list: {columns: [key_result, date, value, measured, confidence, author], sort: date desc}

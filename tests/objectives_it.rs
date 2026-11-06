@@ -4,7 +4,8 @@
 //! it, inside its period and never in a loop; key results that increase, decrease or are done,
 //! moved by their latest check-in by day; progress rolled up the tree; check-ins only within the
 //! period and not ahead of today; a closed objective keeping its score and taking nothing more;
-//! the projects and portfolio behind them; and who may do what.
+//! the projects and portfolio behind them; key results measured from the records with their
+//! owner's rights, each day and at each check-in; reminders to check in; and who may do what.
 
 use chrono::{Duration, Utc};
 use ferrum_kernel::secret::SecretKey;
@@ -48,6 +49,28 @@ impl T {
     }
     async fn progress(&self, entity: &str, id: Uuid) -> f64 {
         dec(&self.get(entity, id).await["progress"])
+    }
+    async fn check_ins(&self, kr: Uuid) -> Vec<Doc> {
+        let filters = ferrum_kernel::query::parse_filters(&json!({"key_result": kr.to_string()})).unwrap();
+        self.k.list(&self.admin, "CheckIn", &ListQuery { filters, ..Default::default() }).await.unwrap().rows
+    }
+    /// As if the key result's last check-in were yesterday's: the next day, for its upkeep.
+    async fn next_day(&self, kr: Uuid) {
+        let yesterday = (Utc::now().date_naive() - Duration::days(1)).to_string();
+        let mut tx = self.k.db.tenant_tx(self.tenant).await.unwrap();
+        let system = ferrum_domain::util::elevated(&self.admin);
+        self.k.set_values_tx(&system, &mut tx, "KeyResult", kr, obj(json!({"last_check_in": yesterday}))).await.unwrap();
+        tx.commit().await.unwrap();
+    }
+    /// The reminders to check in on a key result.
+    async fn reminders(&self, kr: Uuid) -> i64 {
+        let mut tx = self.k.db.tenant_tx(self.tenant).await.unwrap();
+        sqlx::query_scalar("select count(*) from notification where tenant_id = $1 and record_id = $2 and kind = 'objectives.check_in'")
+            .bind(self.tenant)
+            .bind(kr)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap()
     }
 }
 
@@ -195,8 +218,88 @@ async fn scenario() {
     assert_eq!(in_growth.len(), 4);
     assert_eq!(t.get("KeyResult", customers).await["projects"][0]["project"], launch.to_string());
 
+    // ───────────── measured from the records ─────────────
+    let projects = json!({"entity": "Project", "measures": [{"fn": "count"}]});
+    let measured = |title: &str, measure: &Value| json!({"objective": other.to_string(), "title": title, "kind": "Increase", "start_value": "0", "target_value": "4", "measure": measure});
+    refused(
+        t.k.insert(&owner, "KeyResult", obj(measured("Two numbers", &json!({"entity": "Project", "measures": [{"fn": "count"}, {"fn": "count"}]})))).await,
+        "invalid",
+        "one measure, ungrouped",
+    );
+    refused(
+        t.k.insert(&owner, "KeyResult", obj(measured("Of nothing", &json!({"entity": "Nothing", "measures": [{"fn": "count"}]})))).await,
+        "invalid",
+        "does not run",
+    );
+    let started = t.insert(&owner, "KeyResult", measured("Projects started", &projects)).await;
+    assert_eq!(started["owner"], "ceo@goals.test", "its objective's owner, unless someone is named");
+    let started = uid(&started["id"]);
+    let r = t.get("KeyResult", started).await;
+    assert_eq!((dec(&r["current_value"]), dec(&r["progress"])), (1.0, 25.0), "measured as it is saved: one project so far");
+    let first = t.check_ins(started).await;
+    assert_eq!(
+        (first.len(), first[0]["measured"].as_bool(), first[0]["author"].as_str()),
+        (1, Some(true), Some("ceo@goals.test")),
+        "its owner's rights read it"
+    );
+    // Someone checking in says how confident they are; the value is measured, not typed.
+    t.insert(&a, "Project", json!({"project_name": "Open a second shop", "company": company.to_string()})).await;
+    refused(t.k.insert(&owner, "CheckIn", obj(check(started, today, "3", "On Track"))).await, "invalid", "is measured from the records");
+    let c = t.insert(&owner, "CheckIn", json!({"key_result": started.to_string(), "date": today.to_string(), "confidence": "At Risk", "note": "Slow"})).await;
+    assert_eq!((dec(&c["value"]), c["measured"].as_bool()), (2.0, Some(true)));
+    let r = t.get("KeyResult", started).await;
+    assert_eq!((dec(&r["progress"]), r["confidence"].as_str(), r["last_check_in"].as_str()), (50.0, Some("At Risk"), Some(today.to_string().as_str())));
+    let edited = t.k.update(&owner, "CheckIn", uid(&c["id"]), obj(json!({"note": "Faster now"})), None).await.expect("a kept check-in's note");
+    assert_eq!(dec(&edited["value"]), 2.0, "kept as it was measured");
+    refused(
+        t.k.insert(&owner, "CheckIn", obj(json!({"key_result": cost.to_string(), "date": today.to_string(), "confidence": "On Track"}))).await,
+        "invalid",
+        "is required",
+    );
+    // Its owner's rights read it: someone who cannot read projects cannot own it.
+    let mut theirs = measured("Staff's count", &projects);
+    theirs["owner"] = json!("staff@goals.test");
+    refused(t.k.insert(&owner, "KeyResult", obj(theirs)).await, "invalid", "its owner cannot read it");
+    // Each day by itself, once, its confidence the last check-in's.
+    t.insert(&a, "Project", json!({"project_name": "Open a third shop", "company": company.to_string()})).await;
+    t.next_day(started).await;
+    ferrum_app_objectives::maintenance(&t.k).await.expect("upkeep");
+    let r = t.get("KeyResult", started).await;
+    assert_eq!((dec(&r["current_value"]), dec(&r["progress"]), r["confidence"].as_str()), (3.0, 75.0, Some("At Risk")), "the day's measure");
+    assert_eq!(t.check_ins(started).await.len(), 3);
+    t.next_day(started).await;
+    ferrum_app_objectives::maintenance(&t.k).await.expect("upkeep");
+    assert_eq!(t.check_ins(started).await.len(), 3, "tried once a day");
+    // One that cannot be measured keeps why, and leaves the others measured.
+    let analyst = t.user("analyst@goals.test", &["Objectives Owner"]).await;
+    let mut theirs = measured("Analyst's count", &projects);
+    theirs["owner"] = json!("analyst@goals.test");
+    let counted = uid(&t.insert(&owner, "KeyResult", theirs).await["id"]);
+    t.k.set_user_active(&t.admin, analyst.user, false).await.expect("deactivated");
+    t.next_day(counted).await;
+    ferrum_app_objectives::maintenance(&t.k).await.expect("upkeep");
+    let r = t.get("KeyResult", counted).await;
+    assert!(r["measure_error"].as_str().is_some_and(|e| e.contains("not an active person here")), "{r:?}");
+    assert_eq!((r["measured_on"].as_str(), t.check_ins(counted).await.len()), (Some(today.to_string().as_str()), 1));
+
+    // ───────────── reminders to check in ─────────────
+    let survey = |title: &str, every: i64| json!({"objective": other.to_string(), "title": title, "kind": "Increase", "start_value": "0", "target_value": "10", "check_in_every": every});
+    let nps = uid(&t.insert(&owner, "KeyResult", survey("Promoter score", 7)).await["id"]);
+    let quiet = uid(&t.insert(&owner, "KeyResult", survey("Never reminded", 0)).await["id"]);
+    let fresh = uid(&t.insert(&owner, "KeyResult", survey("Just set", 7)).await["id"]);
+    t.insert(&owner, "CheckIn", check(nps, today - Duration::days(8), "4", "On Track")).await;
+    t.insert(&owner, "CheckIn", check(quiet, today - Duration::days(30), "4", "On Track")).await;
+    ferrum_app_objectives::maintenance(&t.k).await.expect("upkeep");
+    assert_eq!(t.reminders(nps).await, 1, "eight days since its last check-in, of every seven");
+    assert_eq!(t.get("KeyResult", nps).await["reminded_on"].as_str(), Some(today.to_string().as_str()));
+    assert_eq!((t.reminders(quiet).await, t.reminders(fresh).await, t.reminders(started).await), (0, 0, 0), "never asked, not yet due, measured");
+    ferrum_app_objectives::maintenance(&t.k).await.expect("upkeep");
+    assert_eq!(t.reminders(nps).await, 1, "once until another check-in is due");
+    t.insert(&owner, "CheckIn", check(nps, today, "5", "On Track")).await;
+    assert_eq!(t.get("KeyResult", nps).await["last_check_in"].as_str(), Some(today.to_string().as_str()));
+
     // ───────────── who may do what ─────────────
     refused(t.k.insert(&viewer, "Objective", obj(objective("Mine", None, q_start, q_end))).await, "forbidden", "");
     refused(t.k.insert(&viewer, "CheckIn", obj(check(cost, today, "25", "On Track"))).await, "forbidden", "");
-    assert_eq!(t.k.list(&viewer, "KeyResult", &ListQuery::default()).await.unwrap().rows.len(), 3, "the viewer follows them");
+    assert_eq!(t.k.list(&viewer, "KeyResult", &ListQuery::default()).await.unwrap().rows.len(), 8, "the viewer follows them");
 }

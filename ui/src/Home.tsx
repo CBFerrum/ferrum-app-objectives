@@ -1,5 +1,5 @@
 // The active objectives as a tree, each with its progress, and its key results with where they
-// stand. An objective or key result opens its record.
+// stand: measured from the records, or due a check-in. An objective or key result opens its record.
 
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
@@ -33,6 +33,14 @@ export function tree(list: Row[]): { row: Row; depth: number }[] {
   return out;
 }
 
+/** Whether a key result checked in by hand is due a check-in on `today` (YYYY-MM-DD), as its owner is reminded. */
+export function due(r: Row, today: string): boolean {
+  const every = Number(r.check_in_every ?? 7);
+  const last = typeof r.last_check_in === "string" ? r.last_check_in.slice(0, 10) : "";
+  if (r.measure || !(every > 0) || !last) return false;
+  return (Date.parse(today) - Date.parse(last)) / 86_400_000 >= every;
+}
+
 const TONE: Record<string, "green" | "amber" | "red"> = { "On Track": "green", "At Risk": "amber", "Off Track": "red" };
 
 export function Home() {
@@ -46,6 +54,7 @@ export function Home() {
   });
   if (q.isPending) return <PageLoading />;
   if (q.isError) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
+  const today = new Date().toISOString().slice(0, 10);
   return (
     <div className="np-page">
       <header className="row" style={{ justifyContent: "space-between" }}>
@@ -66,7 +75,9 @@ export function Home() {
                   .map((r) => (
                     <li key={r.id} className="faint">
                       <Link to={`/e/KeyResult/${r.id}`}>{String(r.title)}</Link> · {String(r.current_value ?? "")} of {String(r.target_value ?? "")} · {String(r.progress ?? 0)}%{" "}
-                      {r.confidence ? <Badge tone={TONE[String(r.confidence)] ?? "amber"}>{String(r.confidence)}</Badge> : null}
+                      {r.confidence ? <Badge tone={TONE[String(r.confidence)] ?? "amber"}>{String(r.confidence)}</Badge> : null}{" "}
+                      {r.measure ? <Badge tone="blue">Measured from the records</Badge> : null}
+                      {due(r, today) ? <Badge tone="amber">Check-in due</Badge> : null}
                     </li>
                   ))}
               </ul>
