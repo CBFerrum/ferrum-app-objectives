@@ -34,7 +34,7 @@ export interface ReviewedResult {
 
 export interface Reviewed {
   objective: Row;
-  /** Its key results' progress on average, on the day reviewed from and now; none without any. */
+  /** Its key results' progress on average by their weights, on the day reviewed from and now; none without any. */
   then: number | null;
   now: number | null;
   results: ReviewedResult[];
@@ -44,7 +44,14 @@ export interface Reviewed {
 
 const RISK: Record<string, number> = { "Off Track": 2, "At Risk": 1 };
 
-const average = (xs: number[]): number | null => (xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10 : null);
+/** The average of (progress, weight) pairs by their weights, as the server rolls progress up; 0 when nothing weighs. */
+export function weighted(xs: [number, number][]): number | null {
+  if (!xs.length) return null;
+  const total = xs.reduce((a, [, w]) => a + w, 0);
+  return total > 0 ? Math.round((xs.reduce((a, [p, w]) => a + p * w, 0) / total) * 10) / 10 : 0;
+}
+
+const weightOf = (kr: Row) => (kr.weight === undefined || kr.weight === null || kr.weight === "" ? 1 : Number(kr.weight));
 
 /** The review of `objectives` since `since`: those at risk first, then the furthest behind. */
 export function review(objectives: Row[], results: Row[], checkIns: Row[], since: string): Reviewed[] {
@@ -60,8 +67,8 @@ export function review(objectives: Row[], results: Row[], checkIns: Row[], since
         }));
       return {
         objective,
-        then: average(rs.map((r) => r.then)),
-        now: average(rs.map((r) => r.now)),
+        then: weighted(rs.map((r) => [r.then, weightOf(r.kr)])),
+        now: weighted(rs.map((r) => [r.now, weightOf(r.kr)])),
         results: rs,
         risk: Math.max(0, ...rs.map((r) => RISK[r.confidence] ?? 0)),
       };
