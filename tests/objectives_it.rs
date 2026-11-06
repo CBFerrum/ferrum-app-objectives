@@ -3,7 +3,9 @@
 //! reset first), with Projects installed: a company objective with team objectives aligned under
 //! it, inside its period and never in a loop; key results that increase, decrease or are done,
 //! moved by their latest check-in by day; progress rolled up the tree; check-ins only within the
-//! period and not ahead of today; a closed objective keeping its score and taking nothing more;
+//! period and not ahead of today; weights on key results and objectives, a weight of 0 counting
+//! for nothing; a closed objective keeping its score, told on the workspace's scale and graded,
+//! and taking nothing more;
 //! the projects and portfolio behind them; key results measured from the records with their
 //! owner's rights, each day and at each check-in; reminders to check in; and who may do what.
 
@@ -202,10 +204,32 @@ async fn scenario() {
     t.k.update(&owner, "Objective", ops, obj(json!({"parent": other.to_string()})), None).await.unwrap();
     assert_eq!((t.progress("Objective", grow).await, t.progress("Objective", other).await), (100.0, 75.0));
 
+    // ───────────── weights ─────────────
+    refused(t.k.update(&owner, "KeyResult", cost, obj(json!({"weight": "-1"})), None).await, "invalid", "is 0 or more");
+    t.k.update(&owner, "KeyResult", cost, obj(json!({"weight": "4"})), None).await.unwrap();
+    assert_eq!((t.progress("Objective", ops).await, t.progress("Objective", other).await), (60.0, 60.0), "50 four times and 100 once, rolled up");
+    let mut aside = objective("Explore", Some(grow), q_start, q_end);
+    aside["weight"] = json!("0");
+    aside.as_object_mut().unwrap().remove("portfolio");
+    let explore = uid(&t.insert(&owner, "Objective", aside).await["id"]);
+    assert_eq!(t.progress("Objective", grow).await, 100.0, "a weight of 0 counts for nothing");
+    t.k.update(&owner, "Objective", explore, obj(json!({"weight": "1"})), None).await.unwrap();
+    assert_eq!(t.progress("Objective", grow).await, 50.0, "now it counts as much as the other");
+
     // ───────────── closing ─────────────
+    // Scored on 0.0 to 1.0, and graded by the bands from 40 and 70.
+    t.insert(&a, "ObjectivesSettings", json!({"scale": "0.0 to 1.0"})).await;
     t.k.run_action(&owner, "Objective", sales, "close_objective", Value::Null).await.expect("closed");
     let closed = t.get("Objective", sales).await;
-    assert_eq!((closed["status"].as_str(), dec(&closed["score"])), (Some("Closed"), 100.0));
+    assert_eq!(
+        (closed["status"].as_str(), dec(&closed["score"]), closed["score_on_scale"].as_str(), closed["grade"].as_str()),
+        (Some("Closed"), 100.0, Some("1 of 1.0"), Some("Achieved"))
+    );
+    for (o, shown, grade) in [(ops, "0.6 of 1.0", "Progress Made"), (explore, "0 of 1.0", "Missed")] {
+        t.k.run_action(&owner, "Objective", o, "close_objective", Value::Null).await.expect("closed");
+        let c = t.get("Objective", o).await;
+        assert_eq!((c["score_on_scale"].as_str(), c["grade"].as_str()), (Some(shown), Some(grade)));
+    }
     refused(t.k.insert(&owner, "CheckIn", obj(check(customers, today, "260", "On Track"))).await, "invalid", "takes no more check-ins");
     refused(t.k.insert(&owner, "KeyResult", obj(kr(sales, "Late one", "Increase", "0", "1"))).await, "invalid", "takes no more key results");
     refused(t.k.update(&owner, "Objective", sales, obj(json!({"title": "Renamed"})), None).await, "invalid", "kept as it closed");
