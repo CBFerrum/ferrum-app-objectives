@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+Rebuilt with Ferrum-Frontend bb60115: a record page reads an empty number or check as the server does, so an action whose condition needs one shows, and a workspace's settings open as their one record.
+
 ## 0.2.1
 
 The workspace's day, not UTC's: a check-in may be dated up to the workspace's today, and the day's
