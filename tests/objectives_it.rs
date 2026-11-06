@@ -102,7 +102,8 @@ async fn scenario() {
     // Projects' roles reach ERP's records, so ERP comes too.
     packages.extend(ferrum_app_erp::packages().expect("ERP's packages"));
     packages.extend(ferrum_app_projects::packages().expect("Projects' packages"));
-    packages.extend(ferrum_app_objectives::packages().expect("app packages"));
+    // Objectives alone: its connector with Metrics needs Metrics' packages (tests/metrics_it.rs).
+    packages.extend(ferrum_app_objectives::packages().expect("app packages").into_iter().filter(|p| p.name() != ferrum_app_objectives::CONNECTOR_PACKAGE));
     let catalog = Catalog::from_packages(packages).expect("catalog");
     let mut hooks = HookRegistry::default();
     ferrum_domain::register(&mut hooks);

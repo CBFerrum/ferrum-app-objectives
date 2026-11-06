@@ -28,6 +28,7 @@ describe("a check-in due", () => {
   });
   it("never for one measured from the records, never asked, or never checked in", () => {
     expect(due({ id: "a", last_check_in: "2026-01-01", measure: { entity: "Project" } }, today)).toBe(false);
+    expect(due({ id: "a", last_check_in: "2026-01-01", metric: "m-1" }, today)).toBe(false);
     expect(due({ id: "a", last_check_in: "2026-01-01", check_in_every: 0 }, today)).toBe(false);
     expect(due({ id: "a" }, today)).toBe(false);
   });

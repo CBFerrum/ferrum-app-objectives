@@ -31,7 +31,8 @@ function Started() {
   return null;
 }
 
-setFrameMode("app", ["objectives"]);
+/** Objectives' packages, its connector with Metrics' among them: the sidebar shows their modules. */
+setFrameMode("app", ["objectives", "objectives_metrics"]);
 
 const router = createBrowserRouter(
   [
