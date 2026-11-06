@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.0
+
+Key results measured from the records, and reminders to check in (FERRUM-ECOSYSTEM-011).
+
+- A key result may name a Studio query of one measure, ungrouped, as a metric is defined. It is
+  read with the key result's owner's rights (its objective's owner, unless someone is named), so
+  saving one is refused when its owner cannot read what it counts. It is measured as it is saved,
+  by itself once a day while its objective is active and in its period, and whenever someone
+  checks in. Such check-ins have their value measured, not typed, and keep the confidence and note
+  given. When the day's measure fails, the reason stays on the key result and the others are
+  still measured.
+- The owner of a key result checked in by hand is reminded in the app (`objectives.check_in`)
+  once a check-in is due: every 7 days, or as set (0 for never). They are reminded again only
+  when the next one is due.
+- Key results show their owner and the day of their latest check-in. The tree marks those
+  measured from the records and those due a check-in.
+- Rebuilt with Ferrum-Frontend 4a3681c.
+
 ## 0.1.4
 
 Rebuilt with Ferrum-Frontend 00dea07: in a workflow state that names what may change, the other fields show read-only, and the fields the state needs show required.

@@ -1,8 +1,8 @@
 id: objectives
 name: Objectives
-version: 0.1.4
+version: 0.2.0
 publisher: cbferrum
-summary: "Objectives aligned to their parents, key results measured by check-ins, progress rolled up, and the projects and portfolios behind them"
+summary: "Objectives aligned to their parents, key results measured by check-ins or from the records, reminders to check in, progress rolled up, and the projects and portfolios behind them"
 description: README.md
 categories: [projects, productivity]
 license: AGPL-3.0-only
@@ -31,3 +31,7 @@ contributes:
   shell.create:
     - {id: objective, label: Objective, path: objectives/e/Objective/new, entity: Objective}
     - {id: checkin, label: Check-in, path: objectives/e/CheckIn/new, entity: CheckIn}
+  # The kind of notification Objectives sends ({app}.{id}, as src/okr.rs sends it, with its default);
+  # each person chooses how it reaches them.
+  shell.notification:
+    - {id: check_in, label: Reminders to check in on your key results, default: [inapp]}
