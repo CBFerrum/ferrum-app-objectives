@@ -17,7 +17,7 @@
 
 use crate::obj;
 use async_trait::async_trait;
-use chrono::{NaiveDate, Utc};
+use chrono::NaiveDate;
 use ferrum_domain::util::{b, d, elevated, id, money, round, s, sys};
 use ferrum_kernel::{Ctx, Doc, DocHook, Error, HookCtx, Kernel, Result, Tx, notify};
 use ferrum_studio::spec::Spec;
@@ -94,7 +94,7 @@ fn said(e: &Error) -> String {
 /// Today's check-in measured from the records, when the key result's objective is active and in
 /// its period; its confidence stays the last check-in's. Whether one was made.
 async fn measure_today(k: &Kernel, ctx: &Ctx, tx: &mut Tx, kr: Uuid) -> Result<bool> {
-    let today = Utc::now().date_naive();
+    let today = ctx.today();
     let open: Option<Option<String>> = sqlx::query_scalar(
         "select kr.confidence from e_key_result kr join e_objective o on o.tenant_id = kr.tenant_id and o.id = kr.objective \
          where kr.tenant_id = $1 and kr.id = $2 and o.status = 'Active' and $3 between o.starts_on and o.ends_on",
@@ -119,7 +119,9 @@ pub(crate) async fn upkeep(k: &Kernel, tenant: Uuid) -> Result<()> {
         return Ok(());
     }
     let ctx = Ctx::system(tenant, schema);
-    let today = Utc::now().date_naive();
+    // The workspace's day, not UTC's.
+    let today = ctx.today();
+    let zone = Some(ctx.schema.timezone.as_str()).filter(|z| !z.is_empty()).unwrap_or("UTC").to_string();
     let mut tx = k.db.tenant_tx(tenant).await?;
     let due: Vec<Uuid> = sqlx::query_scalar(
         "select kr.id from e_key_result kr join e_objective o on o.tenant_id = kr.tenant_id and o.id = kr.objective \
@@ -154,11 +156,12 @@ pub(crate) async fn upkeep(k: &Kernel, tenant: Uuid) -> Result<()> {
          where kr.tenant_id = $1 and jsonb_typeof(kr.measure) is distinct from 'object' and o.status = 'Active' and $2 between o.starts_on and o.ends_on \
          and coalesce(kr.check_in_every, 7) > 0 \
          and coalesce(kr.last_check_in, (select max(c.\"date\") from e_check_in c where c.tenant_id = kr.tenant_id and c.key_result = kr.id), \
-                      greatest(kr.created_at::date, o.starts_on)) <= $2 - coalesce(kr.check_in_every, 7)::int \
+                      greatest((kr.created_at at time zone $3)::date, o.starts_on)) <= $2 - coalesce(kr.check_in_every, 7)::int \
          and (kr.reminded_on is null or kr.reminded_on <= $2 - coalesce(kr.check_in_every, 7)::int) order by kr.id",
     )
     .bind(tenant)
     .bind(today)
+    .bind(&zone)
     .fetch_all(&mut *tx)
     .await?;
     for (kr, title, owner) in late {
@@ -429,7 +432,7 @@ impl DocHook for CheckInHook {
             return Err(Error::field("value", "is required"));
         }
         let on = day(doc, "date").ok_or_else(|| Error::field("date", "is required"))?;
-        if on > Utc::now().date_naive() {
+        if on > hc.ctx.today() {
             return Err(Error::field("date", "is today or before"));
         }
         let row: Option<(Uuid, NaiveDate, NaiveDate, Option<String>)> = sqlx::query_as(

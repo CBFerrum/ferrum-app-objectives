@@ -7,7 +7,7 @@
 //! the projects and portfolio behind them; key results measured from the records with their
 //! owner's rights, each day and at each check-in; reminders to check in; and who may do what.
 
-use chrono::{Duration, Utc};
+use chrono::{Duration, NaiveDate, Timelike, Utc};
 use ferrum_kernel::secret::SecretKey;
 use ferrum_kernel::tenant::NewTenant;
 use ferrum_kernel::{Ctx, Db, DbConfig, Doc, Error, HookRegistry, Kernel, KernelSettings, ListQuery};
@@ -54,9 +54,9 @@ impl T {
         let filters = ferrum_kernel::query::parse_filters(&json!({"key_result": kr.to_string()})).unwrap();
         self.k.list(&self.admin, "CheckIn", &ListQuery { filters, ..Default::default() }).await.unwrap().rows
     }
-    /// As if the key result's last check-in were yesterday's: the next day, for its upkeep.
-    async fn next_day(&self, kr: Uuid) {
-        let yesterday = (Utc::now().date_naive() - Duration::days(1)).to_string();
+    /// As if the key result's last check-in were the day before `today`: the next day, for its upkeep.
+    async fn next_day(&self, kr: Uuid, today: NaiveDate) {
+        let yesterday = (today - Duration::days(1)).to_string();
         let mut tx = self.k.db.tenant_tx(self.tenant).await.unwrap();
         let system = ferrum_domain::util::elevated(&self.admin);
         self.k.set_values_tx(&system, &mut tx, "KeyResult", kr, obj(json!({"last_check_in": yesterday}))).await.unwrap();
@@ -90,6 +90,11 @@ fn a_quarter_of_objectives() {
 }
 
 async fn scenario() {
+    // A workspace whose day is not UTC's, whatever the hour, and an hour or more from its midnight:
+    // a day behind until 11:00 UTC, a day ahead from then. Its dates are its own.
+    let now = Utc::now();
+    let (zone, hours) = if now.hour() < 11 { ("Etc/GMT+12", -12) } else { ("Etc/GMT-14", 14) };
+    let today = (now + Duration::hours(hours)).date_naive();
     let url = std::env::var("FERRUM_OBJECTIVES_TEST_DATABASE_URL").unwrap_or_else(|_| "postgres://ferrum:ferrum@localhost:5432/ferrum_objectives_test".into());
     let db = Db::connect(DbConfig { url, max_connections: 16, ..Default::default() }).await.expect("connect");
     sqlx::raw_sql("drop schema if exists public cascade; create schema public;").execute(&db.pool).await.expect("reset");
@@ -116,7 +121,7 @@ async fn scenario() {
             admin_password: "Correct-Horse-9".into(),
             admin_name: None,
             packages: vec!["objectives".into()],
-            settings: Some(json!({"timezone": "UTC"})),
+            settings: Some(json!({"timezone": zone})),
         })
         .await
         .expect("tenant");
@@ -126,7 +131,6 @@ async fn scenario() {
     let a = t.admin.clone();
     let owner = t.user("ceo@goals.test", &["Objectives Owner"]).await;
     let viewer = t.user("staff@goals.test", &["Objectives Viewer"]).await;
-    let today = Utc::now().date_naive();
     let (q_start, q_end) = (today - Duration::days(30), today + Duration::days(60));
 
     // ───────────── the work behind it ─────────────
@@ -262,12 +266,12 @@ async fn scenario() {
     refused(t.k.insert(&owner, "KeyResult", obj(theirs)).await, "invalid", "its owner cannot read it");
     // Each day by itself, once, its confidence the last check-in's.
     t.insert(&a, "Project", json!({"project_name": "Open a third shop", "company": company.to_string()})).await;
-    t.next_day(started).await;
+    t.next_day(started, today).await;
     ferrum_app_objectives::maintenance(&t.k).await.expect("upkeep");
     let r = t.get("KeyResult", started).await;
     assert_eq!((dec(&r["current_value"]), dec(&r["progress"]), r["confidence"].as_str()), (3.0, 75.0, Some("At Risk")), "the day's measure");
     assert_eq!(t.check_ins(started).await.len(), 3);
-    t.next_day(started).await;
+    t.next_day(started, today).await;
     ferrum_app_objectives::maintenance(&t.k).await.expect("upkeep");
     assert_eq!(t.check_ins(started).await.len(), 3, "tried once a day");
     // One that cannot be measured keeps why, and leaves the others measured.
@@ -276,7 +280,7 @@ async fn scenario() {
     theirs["owner"] = json!("analyst@goals.test");
     let counted = uid(&t.insert(&owner, "KeyResult", theirs).await["id"]);
     t.k.set_user_active(&t.admin, analyst.user, false).await.expect("deactivated");
-    t.next_day(counted).await;
+    t.next_day(counted, today).await;
     ferrum_app_objectives::maintenance(&t.k).await.expect("upkeep");
     let r = t.get("KeyResult", counted).await;
     assert!(r["measure_error"].as_str().is_some_and(|e| e.contains("not an active person here")), "{r:?}");
