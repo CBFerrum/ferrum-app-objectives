@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0
+
+The review meeting's page (FERRUM-ECOSYSTEM-011).
+
+- **Review** (`/objectives/review`, linked from the home page): each active objective, those with
+  a key result Off Track or At Risk first, then the furthest behind. Each shows:
+  - its progress, and its key results' progress on the day reviewed from (two weeks back unless
+    chosen) against now, with the change;
+  - each key result's value against its target, then and now, its confidence, and its last
+    check-in on the workspace's day.
+- Progress on a past day is read from the check-ins the way the server reads it: the latest by day
+  on or before it, else the start.
+- The home page's check-ins due go by the workspace's day.
+
 ## 0.3.1
 
 Rebuilt with Ferrum-Frontend 24c3951: its pages show times on the workspace's clock, naming the zone when it is not the browser's, a draft numbered on submit is headed as a draft, and a record of an app that is not installed says so.
