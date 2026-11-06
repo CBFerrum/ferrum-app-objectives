@@ -5,7 +5,8 @@
 //! * `okr`: key results' progress from their latest check-in, objectives' progress as the average
 //!   of their key results and the objectives aligned to them, alignment that never loops, periods
 //!   within the parent's, and closing with a score; key results measured from the records with
-//!   their owner's rights, and reminders to check in on the others.
+//!   their owner's rights (by a query of their own, or, with Metrics, a certified metric they name),
+//!   and reminders to check in on the others.
 //!
 //! This app's own design; no code was copied (docs/PROVENANCE.md). Hooks are registered per entity,
 //! so a workspace without the `objectives` package never runs them.
@@ -36,6 +37,13 @@ pub fn register(hooks: &mut HookRegistry) {
         .register("KeyResult", Arc::new(okr::KeyResultHook))
         .register("CheckIn", Arc::new(okr::CheckInHook));
 }
+
+/// The connector with Metrics' package.
+pub const CONNECTOR_PACKAGE: &str = "objectives_metrics";
+
+/// The manifest of the connector app with Metrics (`connectors/metrics/app.yaml`): its package is
+/// `objectives_metrics`, its code this crate's. It ships with Objectives.
+pub const CONNECTOR_MANIFEST: &str = include_str!("../connectors/metrics/app.yaml");
 
 /// This app's reports: none of its own yet.
 pub fn reports() -> Vec<Arc<dyn ReportSource>> {
@@ -73,5 +81,7 @@ mod tests {
         let files = UI.iter().map(|(p, b)| (p.to_string(), b.to_vec())).collect();
         let ui = ferrum_apps::ui::prepare("objectives", files).expect("ui/dist is an interface release");
         assert!(UI.iter().any(|(p, _)| *p == "index.html") && !UI.iter().any(|(p, _)| p.starts_with('.')), "{}", ui.digest);
+        let connector = ferrum_apps::AppManifest::parse(CONNECTOR_MANIFEST).expect("connectors/metrics/app.yaml");
+        assert_eq!(connector.packages, vec![CONNECTOR_PACKAGE.to_string()]);
     }
 }
