@@ -42,6 +42,11 @@ Portfolio and objectives for [Ferrum](https://github.com/CBFerrum/Ferrum):
 - **Closing.** A closed objective keeps its progress as its score, and takes no more key results
   or check-ins.
 - **Behind them.** Key results name the projects that move them, and objectives their portfolio.
+- **The review meeting.** The Review page (`/objectives/review`) lists each active objective with
+  its key results, those at risk first and then the furthest behind. Each shows how far it has
+  come since the day reviewed from (two weeks back unless chosen), where it stands now, its
+  confidence and its last check-in. Progress then is read from the check-ins as the server reads
+  them.
 
 ## Develop
 
@@ -70,12 +75,12 @@ Metrics:
 ## Not yet
 
 - Weights on key results, and scoring scales other than 0 to 100.
-- A review meeting's view.
 
 ## Changelog
 
 | Version | Highlights |
 |---|---|
+| **0.4.0** | The review meeting's page: each active objective's change since a day, those at risk first; dates on the workspace's day. |
 | **0.3.1** | Rebuilt with Ferrum-Frontend 24c3951: times on the workspace's clock; drafts headed as drafts. |
 | **0.3.0** | With Metrics, key results measured by a certified metric they name, as it is defined now (connector `objectives-metrics`). |
 | **0.2.2** | Rebuilt with Ferrum-Frontend bb60115: empty numbers read as the server reads them; settings open as their record. |

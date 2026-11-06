@@ -3,7 +3,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
-import { api, docPath } from "@ferrum/client";
+import { api, docPath, todayIso } from "@ferrum/client";
 import { Badge, ErrorState, PageLoading, useShellTitle } from "@ferrum/kit";
 
 export interface Row {
@@ -54,12 +54,16 @@ export function Home() {
   });
   if (q.isPending) return <PageLoading />;
   if (q.isError) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
-  const today = new Date().toISOString().slice(0, 10);
+  // The workspace's day, as its people read dates.
+  const today = todayIso();
   return (
     <div className="np-page">
       <header className="row" style={{ justifyContent: "space-between" }}>
         <h2>Objectives</h2>
-        <Link to="/e/Objective/new">New objective</Link>
+        <span className="row" style={{ gap: 12 }}>
+          <Link to="/review">Review</Link>
+          <Link to="/e/Objective/new">New objective</Link>
+        </span>
       </header>
       <section className="card card-pad stack" aria-label="The tree">
         {q.data.objectives.length === 0 && <p className="faint">No objectives yet: start with the one the others serve.</p>}
