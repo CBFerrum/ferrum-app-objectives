@@ -1,0 +1,19 @@
+package: objectives_metrics
+version: 0.1.0
+label: Objectives and Metrics
+description: Key results measured by a certified metric they name, read as the metric is defined now, with the key result's owner's rights.
+depends: [objectives, metrics]
+field_prefix: okm_
+
+overlays:
+  - entity: KeyResult
+    ops:
+      - {op: add_field, column: true, after: measure, field: {name: metric, type: link, to: Metric, label: Certified Metric, link_filters: {status: Certified}, in_filter: true, description: "A certified metric that measures it, read as the metric is defined now with its owner's rights, in place of a query of its own"}}
+
+roles:
+  - name: Objectives Owner
+    permissions:
+      - {entity: Metric, read: true, where: {status: Certified}}
+  - name: Objectives Viewer
+    permissions:
+      - {entity: Metric, read: true, where: {status: Certified}}

@@ -1,0 +1,18 @@
+# Objectives' connector with Metrics (Ferrum docs/plan/apps-ui.md §13): what needs both apps'
+# records. A key result is measured by a certified metric it names, read as the metric is defined
+# now, with the key result's owner's rights. Offered where both apps are installed; ships with
+# Objectives.
+id: objectives-metrics
+name: Objectives and Metrics
+version: 0.1.0
+publisher: cbferrum
+summary: Key results measured by a certified metric they name, as it is defined now
+categories: [connector, analytics]
+license: AGPL-3.0-only
+homepage: https://github.com/CBFerrum/ferrum-app-objectives
+support: https://github.com/CBFerrum/ferrum-app-objectives/issues
+runtime: native
+platform: ">=0.3.2, <0.4"
+requires: {objectives: ">=0.3", metrics: ">=0.2"}
+packages: [objectives_metrics]
+uninstall: ask

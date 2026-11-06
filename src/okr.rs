@@ -9,9 +9,10 @@
 //! * Check-ins fall within their objective's period and not after today, and a closed objective
 //!   takes none; closing it keeps its progress as its score.
 //! * A key result may be measured from the records: a Studio query of one measure, as a metric is
-//!   defined, read with its owner's rights. Its check-ins then have their values measured, not
-//!   typed: one each day by itself (a failure kept on the key result), and one whenever someone
-//!   checks in, to say how confident they are.
+//!   defined, or, with Metrics' connector, a certified metric it names, read as the metric is
+//!   defined now (and not once it is no longer certified); either is read with its owner's rights.
+//!   Its check-ins then have their values measured, not typed: one each day by itself (a failure
+//!   kept on the key result), and one whenever someone checks in, to say how confident they are.
 //! * The owners of key results checked in by hand are reminded, in the app, once a check-in is
 //!   due, and again each time another is.
 
@@ -56,11 +57,33 @@ pub(crate) fn measure_of(doc: &Doc) -> Result<Option<Spec>> {
         Some(Value::String(t)) => serde_json::from_str(t).map_err(|e| Error::field("measure", format!("is not a Studio query: {e}")))?,
         Some(v) => v.clone(),
     };
-    let spec: Spec = serde_json::from_value(raw).map_err(|e| Error::field("measure", format!("is not a Studio query: {e}")))?;
+    spec_from(raw, "measure").map(Some)
+}
+
+/// A Studio query of one measure, ungrouped, from `raw`; refused on `field`.
+fn spec_from(raw: Value, field: &str) -> Result<Spec> {
+    let spec: Spec = serde_json::from_value(raw).map_err(|e| Error::field(field, format!("is not a Studio query: {e}")))?;
     if spec.measures.len() != 1 || !spec.group_by.is_empty() || spec.pivot.is_some() || spec.time_series.is_some() {
-        return Err(Error::field("measure", "is one measure, ungrouped"));
+        return Err(Error::field(field, "is one measure, ungrouped"));
     }
-    Ok(Some(spec))
+    Ok(spec)
+}
+
+/// What measures a key result: the certified metric it names (Metrics' connector), as the metric is
+/// defined now and only while it is certified, or else a query of its own.
+pub(crate) async fn spec_of(tx: &mut Tx, tenant: Uuid, doc: &Doc) -> Result<Option<Spec>> {
+    let Some(metric) = id(doc, "metric") else { return measure_of(doc) };
+    let row: Option<(String, Option<String>, Option<Value>)> =
+        sqlx::query_as("select metric_name, status, definition from e_metric where tenant_id = $1 and id = $2")
+            .bind(tenant)
+            .bind(metric)
+            .fetch_optional(&mut **tx)
+            .await?;
+    let (name, status, definition) = row.ok_or_else(|| Error::field("metric", "is no metric here"))?;
+    if status.as_deref() != Some("Certified") {
+        return Err(Error::field("metric", format!("{name} is not certified now")));
+    }
+    spec_from(definition.unwrap_or(Value::Null), "metric").map(Some)
 }
 
 /// What the records say for `spec`, read with the rights of `owner`, who must be an active person
@@ -118,16 +141,22 @@ pub(crate) async fn upkeep(k: &Kernel, tenant: Uuid) -> Result<()> {
     if !schema.packages.iter().any(|p| p == "objectives") {
         return Ok(());
     }
+    // Measured from the records: by a query of its own, or by a metric with Metrics' connector.
+    let measured = if schema.packages.iter().any(|p| p == crate::CONNECTOR_PACKAGE) {
+        "(jsonb_typeof(kr.measure) is not distinct from 'object' or kr.metric is not null)"
+    } else {
+        "jsonb_typeof(kr.measure) is not distinct from 'object'"
+    };
     let ctx = Ctx::system(tenant, schema);
     // The workspace's day, not UTC's.
     let today = ctx.today();
     let zone = Some(ctx.schema.timezone.as_str()).filter(|z| !z.is_empty()).unwrap_or("UTC").to_string();
     let mut tx = k.db.tenant_tx(tenant).await?;
-    let due: Vec<Uuid> = sqlx::query_scalar(
+    let due: Vec<Uuid> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
         "select kr.id from e_key_result kr join e_objective o on o.tenant_id = kr.tenant_id and o.id = kr.objective \
-         where kr.tenant_id = $1 and jsonb_typeof(kr.measure) = 'object' and o.status = 'Active' and $2 between o.starts_on and o.ends_on \
+         where kr.tenant_id = $1 and {measured} and o.status = 'Active' and $2 between o.starts_on and o.ends_on \
          and kr.last_check_in is distinct from $2 and (kr.measured_on is null or kr.measured_on < $2) order by kr.id",
-    )
+    )))
     .bind(tenant)
     .bind(today)
     .fetch_all(&mut *tx)
@@ -151,14 +180,14 @@ pub(crate) async fn upkeep(k: &Kernel, tenant: Uuid) -> Result<()> {
         tx.commit().await?;
     }
     let mut tx = k.db.tenant_tx(tenant).await?;
-    let late: Vec<(Uuid, String, Option<String>)> = sqlx::query_as(
+    let late: Vec<(Uuid, String, Option<String>)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "select kr.id, kr.title, coalesce(kr.owner, o.owner)::text from e_key_result kr join e_objective o on o.tenant_id = kr.tenant_id and o.id = kr.objective \
-         where kr.tenant_id = $1 and jsonb_typeof(kr.measure) is distinct from 'object' and o.status = 'Active' and $2 between o.starts_on and o.ends_on \
+         where kr.tenant_id = $1 and not {measured} and o.status = 'Active' and $2 between o.starts_on and o.ends_on \
          and coalesce(kr.check_in_every, 7) > 0 \
          and coalesce(kr.last_check_in, (select max(c.\"date\") from e_check_in c where c.tenant_id = kr.tenant_id and c.key_result = kr.id), \
                       greatest((kr.created_at at time zone $3)::date, o.starts_on)) <= $2 - coalesce(kr.check_in_every, 7)::int \
          and (kr.reminded_on is null or kr.reminded_on <= $2 - coalesce(kr.check_in_every, 7)::int) order by kr.id",
-    )
+    )))
     .bind(tenant)
     .bind(today)
     .bind(&zone)
@@ -344,16 +373,21 @@ impl DocHook for KeyResultHook {
         if !hc.ctx.is_system && closed(hc.tx, hc.ctx.tenant, id(doc, "objective")).await? {
             return Err(Error::field("objective", "is closed: it takes no more key results"));
         }
+        if id(doc, "metric").is_some() && measure_of(doc)?.is_some() {
+            return Err(Error::field("measure", "is the certified metric's: leave it empty"));
+        }
         Ok(())
     }
 
     async fn validate_change(&self, hc: &mut HookCtx<'_>, old: Option<&Doc>, doc: &Doc) -> Result<()> {
-        // Whoever sets a measure can read what it counts; its owner's rights measure it.
-        if old.is_none_or(|o| o.get("measure") != doc.get("measure"))
-            && let Some(spec) = measure_of(doc)?
+        // Whoever sets a measure, or a metric, can read what it counts; its owner's rights measure it.
+        let changed = |k: &str| old.is_none_or(|o| o.get(k) != doc.get(k));
+        if (changed("measure") || changed("metric"))
+            && let Some(spec) = spec_of(hc.tx, hc.ctx.tenant, doc).await?
             && !hc.ctx.is_system
         {
-            ferrum_studio::query::compile(hc.ctx, &spec).map_err(|e| Error::field("measure", format!("does not run: {}", said(&e))))?;
+            let field = if id(doc, "metric").is_some() { "metric" } else { "measure" };
+            ferrum_studio::query::compile(hc.ctx, &spec).map_err(|e| Error::field(field, format!("does not run: {}", said(&e))))?;
         }
         Ok(())
     }
@@ -362,8 +396,9 @@ impl DocHook for KeyResultHook {
         let system = elevated(hc.ctx);
         // A new measure, or a new owner whose rights read it, is measured now.
         let changed = |k: &str| old.is_none_or(|o| o.get(k) != doc.get(k));
-        if measure_of(doc)?.is_some()
-            && (changed("measure") || changed("owner"))
+        // A metric no longer certified is not measured here; the day's upkeep keeps why.
+        if (changed("measure") || changed("metric") || changed("owner"))
+            && matches!(spec_of(hc.tx, hc.ctx.tenant, doc).await, Ok(Some(_)))
             && let Some(kr) = id(doc, "id")
         {
             measure_today(hc.kernel, &system, hc.tx, kr).await?;
@@ -406,7 +441,7 @@ impl DocHook for CheckInHook {
         };
         if !kept && let Some(kr) = id(doc, "key_result") {
             let result = hc.kernel.get_tx(&sys(hc.ctx), hc.tx, "KeyResult", kr, false).await?;
-            let spec = measure_of(&result)?;
+            let spec = spec_of(hc.tx, hc.ctx.tenant, &result).await?;
             doc.insert("measured".into(), json!(spec.is_some()));
             if let Some(spec) = spec {
                 if doc.get("value").is_some_and(|v| !v.is_null()) {

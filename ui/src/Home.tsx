@@ -37,7 +37,7 @@ export function tree(list: Row[]): { row: Row; depth: number }[] {
 export function due(r: Row, today: string): boolean {
   const every = Number(r.check_in_every ?? 7);
   const last = typeof r.last_check_in === "string" ? r.last_check_in.slice(0, 10) : "";
-  if (r.measure || !(every > 0) || !last) return false;
+  if (r.measure || r.metric || !(every > 0) || !last) return false;
   return (Date.parse(today) - Date.parse(last)) / 86_400_000 >= every;
 }
 
@@ -76,7 +76,7 @@ export function Home() {
                     <li key={r.id} className="faint">
                       <Link to={`/e/KeyResult/${r.id}`}>{String(r.title)}</Link> · {String(r.current_value ?? "")} of {String(r.target_value ?? "")} · {String(r.progress ?? 0)}%{" "}
                       {r.confidence ? <Badge tone={TONE[String(r.confidence)] ?? "amber"}>{String(r.confidence)}</Badge> : null}{" "}
-                      {r.measure ? <Badge tone="blue">Measured from the records</Badge> : null}
+                      {r.metric ? <Badge tone="blue">Measured by a certified metric</Badge> : r.measure ? <Badge tone="blue">Measured from the records</Badge> : null}
                       {due(r, today) ? <Badge tone="amber">Check-in due</Badge> : null}
                     </li>
                   ))}
