@@ -1,6 +1,6 @@
 id: objectives
 name: Objectives
-version: 0.6.3
+version: 0.6.4
 publisher: cbferrum
 summary: "Objectives aligned to their parents, key results measured by check-ins or from the records, reminders to check in, progress rolled up, and the projects and portfolios behind them"
 description: README.md
@@ -35,3 +35,15 @@ contributes:
   # each person chooses how it reaches them.
   shell.notification:
     - {id: check_in, label: Reminders to check in on your key results, default: [inapp]}
+  # What the assistant should know in Objectives's pages, and what it suggests asking there.
+  shell.assistant:
+    - id: objectives
+      title: "Objectives"
+      instructions: >-
+        An Objective (Active, Closed) is aligned to a parent. Its key results are measured by check-ins (CheckIn) or
+        from records, and progress rolls up to the parent. The projects behind a key result are linked to it
+        (KeyResultProject).
+      suggestions:
+        - "How are this quarter's company objectives doing?"
+        - "Which key results have no check-in this week?"
+        - "Which objectives are behind?"
