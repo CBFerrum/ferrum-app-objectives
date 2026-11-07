@@ -3,7 +3,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
-import { api, docPath, todayIso } from "@ferrum/client";
+import { api, docPath, todayIso, t } from "@ferrum/client";
 import { Badge, ErrorState, PageLoading, useShellTitle } from "@ferrum/kit";
 
 export interface Row {
@@ -59,14 +59,14 @@ export function Home() {
   return (
     <div className="np-page">
       <header className="row" style={{ justifyContent: "space-between" }}>
-        <h2>Objectives</h2>
+        <h2>{t("Objectives")}</h2>
         <span className="row" style={{ gap: 12 }}>
-          <Link to="/review">Review</Link>
-          <Link to="/e/Objective/new">New objective</Link>
+          <Link to="/review">{t("Review")}</Link>
+          <Link to="/e/Objective/new">{t("New objective")}</Link>
         </span>
       </header>
-      <section className="card card-pad stack" aria-label="The tree">
-        {q.data.objectives.length === 0 && <p className="faint">No objectives yet: start with the one the others serve.</p>}
+      <section className="card card-pad stack" aria-label={t("The tree")}>
+        {q.data.objectives.length === 0 && <p className="faint">{t("No objectives yet: start with the one the others serve.")}</p>}
         <ul className="stack">
           {tree(q.data.objectives).map(({ row: o, depth }) => (
             <li key={o.id} style={{ marginLeft: depth * 24 }} className="stack">
@@ -80,8 +80,8 @@ export function Home() {
                     <li key={r.id} className="faint">
                       <Link to={`/e/KeyResult/${r.id}`}>{String(r.title)}</Link> · {String(r.current_value ?? "")} of {String(r.target_value ?? "")} · {String(r.progress ?? 0)}%{" "}
                       {r.confidence ? <Badge tone={TONE[String(r.confidence)] ?? "amber"}>{String(r.confidence)}</Badge> : null}{" "}
-                      {r.metric ? <Badge tone="blue">Measured by a certified metric</Badge> : r.measure ? <Badge tone="blue">Measured from the records</Badge> : null}
-                      {due(r, today) ? <Badge tone="amber">Check-in due</Badge> : null}
+                      {r.metric ? <Badge tone="blue">{t("Measured by a certified metric")}</Badge> : r.measure ? <Badge tone="blue">{t("Measured from the records")}</Badge> : null}
+                      {due(r, today) ? <Badge tone="amber">{t("Check-in due")}</Badge> : null}
                     </li>
                   ))}
               </ul>
