@@ -42,8 +42,9 @@ Portfolio and objectives for [Ferrum](https://github.com/CBFerrum/Ferrum):
   current up the tree as any of them moves. The review page weighs them the same way.
 - **Closing, scored and graded.** A closed objective keeps its progress as its score, and takes no
   more key results or check-ins. Its score is told on the workspace's scale (Objectives Settings:
-  0 to 100, or 0.0 to 1.0) and graded Missed, Progress Made (from 40 unless set) or Achieved (from
-  70 unless set).
+  0 to 100, 0.0 to 1.0, 1 to 5, or letters from A to F) and graded Missed, Progress Made (from 40
+  unless set) or Achieved (from 70 unless set). Each of its key results is scored and graded with
+  it, by its own progress.
 - **Behind them.** Key results name the projects that move them, and objectives their portfolio.
 - **The review meeting.** The Review page (`/objectives/review`) lists each active objective with
   its key results, those at risk first and then the furthest behind. Each shows how far it has
@@ -66,7 +67,8 @@ cd ui && npm run build && npm run check
   and refused to an owner who cannot read them;
 - reminders to check in, once until the next is due;
 - an objective moved; weights on a key result and an objective, 0 counting for nothing;
-- objectives closed on the 0.0 to 1.0 scale: achieved, progress made and missed;
+- objectives closed on the 0.0 to 1.0 scale: achieved, progress made and missed, and their key
+  results graded with them;
 - who may do what.
 
 `tests/metrics_it.rs` (`FERRUM_OBJECTIVES_METRICS_TEST_DATABASE_URL`) runs the connector with
@@ -78,13 +80,13 @@ Metrics:
 
 ## Not yet
 
-- Scales beyond 0 to 100 and 0.0 to 1.0 (letters, or 1 to 5), and grades of key results
-  themselves: an objective is graded when it closes.
+- Scales other than these four, such as a team's own words for each band.
 
 ## Changelog
 
 | Version | Highlights |
 |---|---|
+| **0.6.0** | Scores on 1 to 5 or as letters; key results scored and graded with their objective; a key result measured from the records built with Studio's builder. |
 | **0.5.4** | Rebuilt with Ferrum-Frontend 63280d3: right to left, pages mirror; the records pages' words in Arabic and Hindi. |
 | **0.5.3** | Rebuilt with Ferrum-Frontend a64416a: a box whose default is 1 shows ticked; action dialogs say every refusal and ask once. |
 | **0.5.2** | The review over every key result and check-in, not one page of 500. |
