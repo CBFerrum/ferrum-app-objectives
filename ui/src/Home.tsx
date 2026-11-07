@@ -3,7 +3,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
-import { api, docPath, todayIso, t } from "@ferrum/client";
+import { api, docPath, todayIso, t, isolate } from "@ferrum/client";
 import { Badge, ErrorState, PageLoading, useShellTitle } from "@ferrum/kit";
 
 export interface Row {
@@ -44,7 +44,7 @@ export function due(r: Row, today: string): boolean {
 const TONE: Record<string, "green" | "amber" | "red"> = { "On Track": "green", "At Risk": "amber", "Off Track": "red" };
 
 export function Home() {
-  useShellTitle("Objectives");
+  useShellTitle(t("Objectives"));
   const q = useQuery({
     queryKey: ["objectives", "tree"],
     queryFn: async () => {
@@ -71,15 +71,15 @@ export function Home() {
           {tree(q.data.objectives).map(({ row: o, depth }) => (
             <li key={o.id} style={{ marginLeft: depth * 24 }} className="stack">
               <span>
-                <Link to={`/e/Objective/${o.id}`}>{String(o.title)}</Link> · {String(o.progress ?? 0)}%
+                <Link to={`/e/Objective/${o.id}`}>{isolate(String(o.title))}</Link> · {isolate(String(o.progress ?? 0))}%
               </span>
               <ul className="stack">
                 {q.data.results
                   .filter((r) => r.objective === o.id)
                   .map((r) => (
                     <li key={r.id} className="faint">
-                      <Link to={`/e/KeyResult/${r.id}`}>{String(r.title)}</Link> · {String(r.current_value ?? "")} of {String(r.target_value ?? "")} · {String(r.progress ?? 0)}%{" "}
-                      {r.confidence ? <Badge tone={TONE[String(r.confidence)] ?? "amber"}>{String(r.confidence)}</Badge> : null}{" "}
+                      <Link to={`/e/KeyResult/${r.id}`}>{isolate(String(r.title))}</Link> {t("· {value} of {value2} · {value3}%", { value: String(r.current_value ?? ""), value2: String(r.target_value ?? ""), value3: String(r.progress ?? 0) })}{isolate(" ")}
+                      {r.confidence ? <Badge tone={TONE[String(r.confidence)] ?? "amber"}>{isolate(String(r.confidence))}</Badge> : null}{isolate(" ")}
                       {r.metric ? <Badge tone="blue">{t("Measured by a certified metric")}</Badge> : r.measure ? <Badge tone="blue">{t("Measured from the records")}</Badge> : null}
                       {due(r, today) ? <Badge tone="amber">{t("Check-in due")}</Badge> : null}
                     </li>
