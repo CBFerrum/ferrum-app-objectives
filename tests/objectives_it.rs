@@ -5,6 +5,7 @@
 //! moved by their latest check-in by day; progress rolled up the tree; check-ins only within the
 //! period and not ahead of today; weights on key results and objectives, a weight of 0 counting
 //! for nothing; a closed objective keeping its score, told on the workspace's scale and graded,
+//! each of its key results with it,
 //! and taking nothing more;
 //! the projects and portfolio behind them; key results measured from the records with their
 //! owner's rights, each day and at each check-in; reminders to check in; and who may do what.
@@ -229,6 +230,11 @@ async fn scenario() {
         t.k.run_action(&owner, "Objective", o, "close_objective", Value::Null).await.expect("closed");
         let c = t.get("Objective", o).await;
         assert_eq!((c["score_on_scale"].as_str(), c["grade"].as_str()), (Some(shown), Some(grade)));
+    }
+    // Each key result scored and graded with its objective, by its own progress.
+    for (result, score, shown, grade) in [(customers, 100.0, "1 of 1.0", "Achieved"), (cost, 50.0, "0.5 of 1.0", "Progress Made")] {
+        let r = t.get("KeyResult", result).await;
+        assert_eq!((dec(&r["score"]), r["score_on_scale"].as_str(), r["grade"].as_str()), (score, Some(shown), Some(grade)), "{r:?}");
     }
     refused(t.k.insert(&owner, "CheckIn", obj(check(customers, today, "260", "On Track"))).await, "invalid", "takes no more check-ins");
     refused(t.k.insert(&owner, "KeyResult", obj(kr(sales, "Late one", "Increase", "0", "1"))).await, "invalid", "takes no more key results");
