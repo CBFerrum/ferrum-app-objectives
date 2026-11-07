@@ -5,7 +5,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
-import { api, docPath, formatMoment, todayIso, t } from "@ferrum/client";
+import { api, docPath, formatMoment, todayIso, t, isolate } from "@ferrum/client";
 import { Badge, ErrorState, PageLoading, useShellTitle } from "@ferrum/kit";
 import { change, daysBefore, review, type Row } from "./meeting";
 
@@ -30,7 +30,7 @@ const TONE: Record<string, "green" | "amber" | "red"> = { "On Track": "green", "
 const day = (at: unknown) => (typeof at === "string" && at ? formatMoment(at, { day: "numeric", month: "short", year: "numeric" }) : "never");
 
 export function Review() {
-  useShellTitle("Review");
+  useShellTitle(t("Review"));
   const today = todayIso();
   const [since, setSince] = useState(() => daysBefore(today, 14));
   const q = useQuery({
@@ -61,14 +61,14 @@ export function Review() {
         <section key={o.id} className="card card-pad stack" aria-label={String(o.title)}>
           <header className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
             <h3>
-              <Link to={`/e/Objective/${o.id}`}>{String(o.title)}</Link> <span className="faint">· {String(o.owner ?? "")}</span>
+              <Link to={`/e/Objective/${o.id}`}>{isolate(String(o.title))}</Link> <span className="faint">· {isolate(String(o.owner ?? ""))}</span>
             </h3>
             <span className="row" style={{ gap: 8 }}>
               {risk === 2 ? <Badge tone="red">{t("Off track")}</Badge> : risk === 1 ? <Badge tone="amber">{t("At risk")}</Badge> : null}
-              <strong>{String(o.progress ?? 0)}%</strong>
+              <strong>{isolate(String(o.progress ?? 0))}%</strong>
               {then !== null && now !== null ? (
                 <span className="faint">
-                  {t("key results {then}% → {now}% (", { then, now })}{change(then, now)})
+                  {t("key results {then}% → {now}% (", { then, now })}{isolate(change(then, now))})
                 </span>
               ) : null}
             </span>
@@ -78,7 +78,7 @@ export function Review() {
           ) : (
             <div className="table-wrap">
               <table className="table">
-                <caption className="sr-only">{t("The key results of")} {String(o.title)}</caption>
+                <caption className="sr-only">{t("The key results of")} {isolate(String(o.title))}</caption>
                 <thead>
                   <tr>
                     <th scope="col">{t("Key result")}</th>
@@ -99,17 +99,17 @@ export function Review() {
                   {results.map((r) => (
                     <tr key={r.kr.id}>
                       <td>
-                        <Link to={`/e/KeyResult/${r.kr.id}`}>{String(r.kr.title)}</Link>
+                        <Link to={`/e/KeyResult/${r.kr.id}`}>{isolate(String(r.kr.title))}</Link>
                         <span className="faint">
-                          {" "}
-                          · {String(r.kr.current_value ?? "")} of {String(r.kr.target_value ?? "")}
+                          {isolate(" ")}
+                          {t("· {value} of {value2}", { value: String(r.kr.current_value ?? ""), value2: String(r.kr.target_value ?? "") })}
                         </span>
                       </td>
                       <td className="num">{r.then}%</td>
                       <td className="num">{r.now}%</td>
-                      <td className="num">{change(r.then, r.now)}</td>
-                      <td>{r.confidence ? <Badge tone={TONE[r.confidence] ?? "amber"}>{r.confidence}</Badge> : null}</td>
-                      <td>{day(r.kr.last_check_in)}</td>
+                      <td className="num">{isolate(change(r.then, r.now))}</td>
+                      <td>{r.confidence ? <Badge tone={TONE[r.confidence] ?? "amber"}>{isolate(r.confidence)}</Badge> : null}</td>
+                      <td>{isolate(day(r.kr.last_check_in))}</td>
                     </tr>
                   ))}
                 </tbody>
