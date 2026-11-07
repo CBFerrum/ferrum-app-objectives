@@ -5,7 +5,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
-import { api, docPath, formatMoment, todayIso } from "@ferrum/client";
+import { api, docPath, formatMoment, todayIso, t } from "@ferrum/client";
 import { Badge, ErrorState, PageLoading, useShellTitle } from "@ferrum/kit";
 import { change, daysBefore, review, type Row } from "./meeting";
 
@@ -50,13 +50,13 @@ export function Review() {
   return (
     <div className="np-page">
       <header className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-        <h2>Review</h2>
+        <h2>{t("Review")}</h2>
         <label className="row" style={{ gap: 8 }}>
-          <span>Since</span>
+          <span>{t("Since")}</span>
           <input type="date" className="input" value={since} max={today} onChange={(e) => e.target.value && setSince(e.target.value)} />
         </label>
       </header>
-      {reviewed.length === 0 && <p className="faint">No active objectives to review.</p>}
+      {reviewed.length === 0 && <p className="faint">{t("No active objectives to review.")}</p>}
       {reviewed.map(({ objective: o, then, now, results, risk }) => (
         <section key={o.id} className="card card-pad stack" aria-label={String(o.title)}>
           <header className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
@@ -64,35 +64,35 @@ export function Review() {
               <Link to={`/e/Objective/${o.id}`}>{String(o.title)}</Link> <span className="faint">· {String(o.owner ?? "")}</span>
             </h3>
             <span className="row" style={{ gap: 8 }}>
-              {risk === 2 ? <Badge tone="red">Off track</Badge> : risk === 1 ? <Badge tone="amber">At risk</Badge> : null}
+              {risk === 2 ? <Badge tone="red">{t("Off track")}</Badge> : risk === 1 ? <Badge tone="amber">{t("At risk")}</Badge> : null}
               <strong>{String(o.progress ?? 0)}%</strong>
               {then !== null && now !== null ? (
                 <span className="faint">
-                  key results {then}% → {now}% ({change(then, now)})
+                  {t("key results {then}% → {now}% (", { then, now })}{change(then, now)})
                 </span>
               ) : null}
             </span>
           </header>
           {results.length === 0 ? (
-            <p className="faint">No key results of its own: its progress is the objectives aligned to it.</p>
+            <p className="faint">{t("No key results of its own: its progress is the objectives aligned to it.")}</p>
           ) : (
             <div className="table-wrap">
               <table className="table">
-                <caption className="sr-only">The key results of {String(o.title)}</caption>
+                <caption className="sr-only">{t("The key results of")} {String(o.title)}</caption>
                 <thead>
                   <tr>
-                    <th scope="col">Key result</th>
+                    <th scope="col">{t("Key result")}</th>
                     <th scope="col" className="num">
-                      Then
+                      {t("Then")}
                     </th>
                     <th scope="col" className="num">
-                      Now
+                      {t("Now")}
                     </th>
                     <th scope="col" className="num">
-                      Change
+                      {t("Change")}
                     </th>
-                    <th scope="col">Confidence</th>
-                    <th scope="col">Last check-in</th>
+                    <th scope="col">{t("Confidence")}</th>
+                    <th scope="col">{t("Last check-in")}</th>
                   </tr>
                 </thead>
                 <tbody>
