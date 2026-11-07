@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0
+
+- **Two more scales.** A closed objective's score is told on 1 to 5, running evenly from 1 (nothing)
+  to 5 (all), or as a letter: A from 90, B from 80, C from 70, D from 60, F below (Objectives
+  Settings). 0 to 100 and 0.0 to 1.0 stay. The grades (Missed, Progress Made, Achieved) keep the
+  workspace's bands whatever the scale.
+- **Key results graded.** Closing an objective scores and grades each of its key results, by its
+  own progress, on the same scale (Score, Scored, Grade on the key result).
+- **A query built, not typed.** A key result measured from the records takes its Studio query on
+  Studio's builder in its form (`widget: studio_query`, which needs Ferrum with field widgets).
+
 ## 0.5.4
 
 Rebuilt with Ferrum-Frontend 63280d3: right to left, its pages mirror as they read (icons that point along the line, margins and alignment by the line's start and end, arrow keys along it), and the records pages' words are in Arabic and Hindi.
