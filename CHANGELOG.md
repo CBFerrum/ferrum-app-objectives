@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1
+
+Rebuilt with Ferrum-Frontend d5d98f2: a workspace's own words for its interface (Admin, Interface words) reach its pages as they load; an attachment field that holds a picture shows it; and a value another record already has is said so, where the form said the record had been changed by someone else.
+
 ## 0.6.0
 
 - **Two more scales.** A closed objective's score is told on 1 to 5, running evenly from 1 (nothing)
