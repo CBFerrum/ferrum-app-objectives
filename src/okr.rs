@@ -9,7 +9,8 @@
 //!   keeps the tree from looping).
 //! * Check-ins fall within their objective's period and not after today, and a closed objective
 //!   takes none; closing it keeps its progress as its score, told on the workspace's scale (0 to
-//!   100, or 0.0 to 1.0) and graded Missed, Progress Made or Achieved by its settings' bands.
+//!   100, 0.0 to 1.0, 1 to 5, or a letter) and graded Missed, Progress Made or Achieved by its
+//!   settings' bands. Each of its key results is scored and graded with it, by its own progress.
 //! * A key result may be measured from the records: a Studio query of one measure, as a metric is
 //!   defined, or, with Metrics' connector, a certified metric it names, read as the metric is
 //!   defined now (and not once it is no longer certified); either is read with its owner's rights.
@@ -39,10 +40,27 @@ pub(crate) fn weighted(parts: &[(Decimal, Decimal)]) -> Decimal {
 }
 
 /// A score from 0 to 100 told on `scale`, and graded by the bands from which it is Progress Made
-/// and Achieved.
+/// and Achieved. 1 to 5 runs evenly from 1 (nothing) to 5 (all); Letters are A from 90, B from 80,
+/// C from 70, D from 60 and F below.
 pub(crate) fn graded(score: Decimal, scale: &str, progress_from: Decimal, achieved_from: Decimal) -> (String, &'static str) {
     let shown = match scale {
         "0.0 to 1.0" => format!("{} of 1.0", round(score / Decimal::ONE_HUNDRED, 2).normalize()),
+        "1 to 5" => format!("{} of 5", round(Decimal::ONE + score / Decimal::from(25), 1).normalize()),
+        "Letters" => {
+            let from = |n: i64| score >= Decimal::from(n);
+            (if from(90) {
+                "A"
+            } else if from(80) {
+                "B"
+            } else if from(70) {
+                "C"
+            } else if from(60) {
+                "D"
+            } else {
+                "F"
+            })
+            .to_string()
+        }
         _ => format!("{} of 100", score.normalize()),
     };
     let grade = if score >= achieved_from {
@@ -341,10 +359,23 @@ impl DocHook for ObjectiveHook {
                 .fetch_optional(&mut **hc.tx)
                 .await?;
         let (scale, progress_from, achieved_from) = set.unwrap_or_default();
-        let (shown, grade) =
-            graded(score, scale.as_deref().unwrap_or("0 to 100"), progress_from.unwrap_or(Decimal::from(40)), achieved_from.unwrap_or(Decimal::from(70)));
+        let (scale, progress_from, achieved_from) =
+            (scale.as_deref().unwrap_or("0 to 100"), progress_from.unwrap_or(Decimal::from(40)), achieved_from.unwrap_or(Decimal::from(70)));
+        let (shown, grade) = graded(score, scale, progress_from, achieved_from);
         let values = json!({"status": "Closed", "score": money(score), "score_on_scale": shown, "grade": grade});
         hc.kernel.set_values_tx(&elevated(hc.ctx), hc.tx, "Objective", objective, obj(values.clone())).await?;
+        // Its key results are scored and graded with it, each by its own progress.
+        let results: Vec<(Uuid, Option<Decimal>)> = sqlx::query_as("select id, progress from e_key_result where tenant_id = $1 and objective = $2")
+            .bind(hc.ctx.tenant)
+            .bind(objective)
+            .fetch_all(&mut **hc.tx)
+            .await?;
+        for (result, progress) in results {
+            let score = progress.unwrap_or_default();
+            let (shown, grade) = graded(score, scale, progress_from, achieved_from);
+            let graded_values = json!({"score": money(score), "score_on_scale": shown, "grade": grade});
+            hc.kernel.set_values_tx(&elevated(hc.ctx), hc.tx, "KeyResult", result, obj(graded_values)).await?;
+        }
         Ok(Some(values))
     }
 }
@@ -606,5 +637,11 @@ mod tests {
         assert_eq!(graded(v("65"), "0.0 to 1.0", v("40"), v("70")), ("0.65 of 1.0".to_string(), "Progress Made"));
         assert_eq!(graded(v("30"), "0.0 to 1.0", v("40"), v("70")), ("0.3 of 1.0".to_string(), "Missed"));
         assert_eq!(graded(v("100"), "0.0 to 1.0", v("40"), v("70")).0, "1 of 1.0");
+        // 1 to 5, evenly; letters by tens from 60.
+        assert_eq!(graded(v("0"), "1 to 5", v("40"), v("70")), ("1 of 5".to_string(), "Missed"));
+        assert_eq!(graded(v("72.5"), "1 to 5", v("40"), v("70")), ("3.9 of 5".to_string(), "Achieved"));
+        assert_eq!(graded(v("100"), "1 to 5", v("40"), v("70")).0, "5 of 5");
+        let letters: Vec<String> = ["95", "80", "79.9", "65", "59"].iter().map(|s| graded(v(s), "Letters", v("40"), v("70")).0).collect();
+        assert_eq!(letters, ["A", "B", "C", "D", "F"]);
     }
 }
