@@ -31,7 +31,10 @@ Portfolio and objectives for [Ferrum](https://github.com/CBFerrum/Ferrum):
   reason stays on the key result.
 - **By a certified metric.** With Metrics installed, the connector Objectives and Metrics
   (`objectives-metrics`) lets a key result name a certified metric instead of a query of its own.
-  It is measured as the metric is defined now, with the key result's owner's rights. A metric
+  Its value is the one Metrics gives the key result's owner, as the metric is defined now: a
+  metric composed of others, or converted between currencies, reads exactly as it does in Metrics,
+  and one Metrics has no value for (a missing exchange rate, say) measures nothing that day, with
+  Metrics' reason kept. A metric
   changed back to draft, or deprecated, measures nothing until it is certified again: the day's
   upkeep keeps why, and a check-in is refused saying so.
 - **Reminders.** The owner of a key result checked in by hand is reminded in the app once a
@@ -93,6 +96,7 @@ Metrics:
 | **0.6.1** | Rebuilt with Ferrum-Frontend d5d98f2: a workspace's own interface words; pictures in attachment fields; a duplicate value said so. |
 | **0.6.0** | Scores on 1 to 5 or as letters; key results scored and graded with their objective; a key result measured from the records built with Studio's builder. |
 | **0.5.4** | Rebuilt with Ferrum-Frontend 63280d3: right to left, pages mirror; the records pages' words in Arabic and Hindi. |
+| **0.7.0** | A key result measured by a certified metric reads Metrics' own value for its owner, so composed and currency-converted metrics measure it as Metrics defines them. |
 | **0.5.3** | Rebuilt with Ferrum-Frontend a64416a: a box whose default is 1 shows ticked; action dialogs say every refusal and ask once. |
 | **0.5.2** | The review over every key result and check-in, not one page of 500. |
 | **0.5.1** | Rebuilt with Ferrum-Frontend a76295e: times on a person's own clock when they chose one. |
