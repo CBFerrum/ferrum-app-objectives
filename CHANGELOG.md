@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0
+
+A key result measured by a certified metric (connector `objectives-metrics`) now reads the metric's value from
+Metrics, for its owner and with their rights, instead of running the metric's query here. A metric composed of
+others, which has no query, can now measure a key result, and one converted between currencies (Metrics 0.6.0)
+measures it in its own currency, never as a sum of the amounts as they are. When Metrics has no value, a missing
+exchange rate among other reasons, nothing is measured that day and Metrics' reason stays on the key result.
+Whoever sets the metric must be able to read its value. tests/metrics_it.rs measures key results by a
+converted metric and a composed one.
+
 ## 0.6.5
 
 Rebuilt with Ferrum-Frontend c59c9a2: the names of its models, fields and manifest in Arabic and Hindi (100 each in ui/src/locales/names, which the platform serves to every page of the workspace, so a record's labels, the launcher and the bar read in the person's language). Translated by the model, to be reviewed by native speakers.
