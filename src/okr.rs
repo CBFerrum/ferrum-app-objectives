@@ -12,8 +12,9 @@
 //!   100, 0.0 to 1.0, 1 to 5, or a letter) and graded Missed, Progress Made or Achieved by its
 //!   settings' bands. Each of its key results is scored and graded with it, by its own progress.
 //! * A key result may be measured from the records: a Studio query of one measure, as a metric is
-//!   defined, or, with Metrics' connector, a certified metric it names, read as the metric is
-//!   defined now (and not once it is no longer certified); either is read with its owner's rights.
+//!   defined, or, with Metrics' connector, a certified metric it names, whose value Metrics gives as
+//!   the metric is defined now (composed of others or converted between currencies as it is, and not
+//!   once it is no longer certified); either is read with its owner's rights.
 //!   Its check-ins then have their values measured, not typed: one each day by itself (a failure
 //!   kept on the key result), and one whenever someone checks in, to say how confident they are.
 //! * The owners of key results checked in by hand are reminded, in the app, once a check-in is
@@ -23,7 +24,7 @@ use crate::obj;
 use async_trait::async_trait;
 use chrono::NaiveDate;
 use ferrum_domain::util::{b, d, elevated, id, money, round, s, sys};
-use ferrum_kernel::{Ctx, Doc, DocHook, Error, HookCtx, Kernel, Result, Tx, notify};
+use ferrum_kernel::{Ctx, Doc, DocHook, Error, HookCtx, Kernel, Result, SiteRequest, Tx, notify};
 use ferrum_studio::spec::Spec;
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
@@ -115,26 +116,48 @@ fn spec_from(raw: Value, field: &str) -> Result<Spec> {
     Ok(spec)
 }
 
-/// What measures a key result: the certified metric it names (Metrics' connector), as the metric is
-/// defined now and only while it is certified, or else a query of its own.
-pub(crate) async fn spec_of(tx: &mut Tx, tenant: Uuid, doc: &Doc) -> Result<Option<Spec>> {
-    let Some(metric) = id(doc, "metric") else { return measure_of(doc) };
-    let row: Option<(String, Option<String>, Option<Value>)> =
-        sqlx::query_as("select metric_name, status, definition from e_metric where tenant_id = $1 and id = $2")
-            .bind(tenant)
-            .bind(metric)
-            .fetch_optional(&mut **tx)
-            .await?;
-    let (name, status, definition) = row.ok_or_else(|| Error::field("metric", "is no metric here"))?;
+/// What measures a key result: a query of its own, or the certified metric it names (Metrics' connector).
+pub(crate) enum Source {
+    Query(Box<Spec>),
+    /// A metric by name, its value Metrics' own: one composed of others, or converted between
+    /// currencies, reads here exactly as it does there. Its definition is never run here.
+    Metric(String),
+}
+
+/// What measures a key result: the certified metric it names, only while it is certified, or else a
+/// query of its own.
+pub(crate) async fn source_of(tx: &mut Tx, tenant: Uuid, doc: &Doc) -> Result<Option<Source>> {
+    let Some(metric) = id(doc, "metric") else { return Ok(measure_of(doc)?.map(|spec| Source::Query(Box::new(spec)))) };
+    let row: Option<(String, Option<String>)> =
+        sqlx::query_as("select metric_name, status from e_metric where tenant_id = $1 and id = $2").bind(tenant).bind(metric).fetch_optional(&mut **tx).await?;
+    let (name, status) = row.ok_or_else(|| Error::field("metric", "is no metric here"))?;
     if status.as_deref() != Some("Certified") {
         return Err(Error::field("metric", format!("{name} is not certified now")));
     }
-    spec_from(definition.unwrap_or(Value::Null), "metric").map(Some)
+    Ok(Some(Source::Metric(name)))
+}
+
+/// A certified metric's value as Metrics gives it to `ctx`: the number that person reads there.
+async fn metric_value(k: &Kernel, ctx: &Ctx, name: &str) -> Result<Decimal> {
+    let site = k.hooks.site("metrics").ok_or_else(|| Error::invalid("Metrics is not installed here"))?.clone();
+    let req = SiteRequest {
+        tenant: ctx.tenant,
+        user: Some(ctx.clone()),
+        method: "GET".into(),
+        path: "/value".into(),
+        query: json!({"metric": name}).as_object().cloned().unwrap_or_default(),
+        headers: Default::default(),
+        body: vec![],
+        client_ip: "127.0.0.1".into(),
+    };
+    let r = site.handle(k, req).await?;
+    let answer: Value = serde_json::from_slice(&r.body).map_err(|e| Error::internal(format!("Metrics answered with something that is not JSON: {e}")))?;
+    answer["value"].as_str().and_then(|v| v.parse().ok()).ok_or_else(|| Error::internal(format!("Metrics gave no value for {name}")))
 }
 
 /// What the records say for `spec`, read with the rights of `owner`, who must be an active person
 /// here.
-async fn measured(k: &Kernel, tx: &mut Tx, tenant: Uuid, owner: &str, spec: &Spec) -> Result<Decimal> {
+async fn measured(k: &Kernel, tx: &mut Tx, tenant: Uuid, owner: &str, source: &Source) -> Result<Decimal> {
     let user: Option<Uuid> = sqlx::query_scalar("select id from app_user where tenant_id = $1 and is_active and lower(email::text) = lower($2)")
         .bind(tenant)
         .bind(owner)
@@ -142,6 +165,12 @@ async fn measured(k: &Kernel, tx: &mut Tx, tenant: Uuid, owner: &str, spec: &Spe
         .await?;
     let user = user.ok_or_else(|| Error::field("owner", format!("{owner} is not an active person here, so nothing is measured with their rights")))?;
     let ctx = k.load_ctx(tenant, user, None, "objectives.measure".into()).await?;
+    let spec = match source {
+        Source::Query(spec) => spec,
+        Source::Metric(name) => {
+            return metric_value(k, &ctx, name).await.map_err(|e| Error::field("metric", format!("{name} has no value for its owner: {}", said(&e))));
+        }
+    };
     let out = ferrum_studio::run::run(k, &ctx, spec).await.map_err(|e| Error::field("measure", format!("its owner cannot read it: {}", said(&e))))?;
     let key = out["columns"].as_array().and_then(|c| c.last()).and_then(|c| c["name"].as_str()).unwrap_or_default().to_string();
     let cell = out["rows"].as_array().and_then(|r| r.first()).map(|r| r[&key].clone()).unwrap_or(Value::Null);
@@ -458,11 +487,17 @@ impl DocHook for KeyResultHook {
         // Whoever sets a measure, or a metric, can read what it counts; its owner's rights measure it.
         let changed = |k: &str| old.is_none_or(|o| o.get(k) != doc.get(k));
         if (changed("measure") || changed("metric"))
-            && let Some(spec) = spec_of(hc.tx, hc.ctx.tenant, doc).await?
+            && let Some(source) = source_of(hc.tx, hc.ctx.tenant, doc).await?
             && !hc.ctx.is_system
         {
-            let field = if id(doc, "metric").is_some() { "metric" } else { "measure" };
-            ferrum_studio::query::compile(hc.ctx, &spec).map_err(|e| Error::field(field, format!("does not run: {}", said(&e))))?;
+            match &source {
+                Source::Query(spec) => {
+                    ferrum_studio::query::compile(hc.ctx, spec).map_err(|e| Error::field("measure", format!("does not run: {}", said(&e))))?;
+                }
+                Source::Metric(name) => {
+                    metric_value(hc.kernel, hc.ctx, name).await.map_err(|e| Error::field("metric", format!("{name} has no value for you: {}", said(&e))))?;
+                }
+            }
         }
         Ok(())
     }
@@ -473,7 +508,7 @@ impl DocHook for KeyResultHook {
         let changed = |k: &str| old.is_none_or(|o| o.get(k) != doc.get(k));
         // A metric no longer certified is not measured here; the day's upkeep keeps why.
         if (changed("measure") || changed("metric") || changed("owner"))
-            && matches!(spec_of(hc.tx, hc.ctx.tenant, doc).await, Ok(Some(_)))
+            && matches!(source_of(hc.tx, hc.ctx.tenant, doc).await, Ok(Some(_)))
             && let Some(kr) = id(doc, "id")
         {
             measure_today(hc.kernel, &system, hc.tx, kr).await?;
@@ -516,14 +551,14 @@ impl DocHook for CheckInHook {
         };
         if !kept && let Some(kr) = id(doc, "key_result") {
             let result = hc.kernel.get_tx(&sys(hc.ctx), hc.tx, "KeyResult", kr, false).await?;
-            let spec = spec_of(hc.tx, hc.ctx.tenant, &result).await?;
-            doc.insert("measured".into(), json!(spec.is_some()));
-            if let Some(spec) = spec {
+            let source = source_of(hc.tx, hc.ctx.tenant, &result).await?;
+            doc.insert("measured".into(), json!(source.is_some()));
+            if let Some(source) = source {
                 if doc.get("value").is_some_and(|v| !v.is_null()) {
                     return Err(Error::field("value", "is measured from the records: leave it empty"));
                 }
                 let owner = s(&result, "owner").unwrap_or_default().to_string();
-                let v = measured(hc.kernel, hc.tx, hc.ctx.tenant, &owner, &spec).await?;
+                let v = measured(hc.kernel, hc.tx, hc.ctx.tenant, &owner, &source).await?;
                 doc.insert("value".into(), money(v));
                 // The day's own measure is its owner's: theirs are the rights that read it.
                 if hc.ctx.is_system && s(doc, "author").is_none() && !owner.is_empty() {
