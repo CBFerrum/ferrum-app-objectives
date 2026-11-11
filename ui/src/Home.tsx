@@ -4,8 +4,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Target } from "lucide-react";
 import { api, docPath, todayIso, t, isolate } from "@ferrum/client";
-import { Badge, ButtonLink, HomeSkeleton, LoadFailed, PageHead, Queue, QueueGrid, QueueItem, StatePanel, useShellTitle } from "@ferrum/kit";
-import { Progress } from "@ferrum/kit/primitives";
+import { Badge, ButtonLink, HomeSkeleton, LoadFailed, PageHead, PageStack, Queue, QueueGrid, QueueItem, StatePanel, useShellTitle } from "@ferrum/kit";
 
 export interface Row {
   id: string;
@@ -47,11 +46,8 @@ export function Percent({ value }: { value: unknown }) {
   return <span className="min-w-10 text-end text-sm font-medium tabular-nums">{isolate(String(value ?? 0))}%</span>;
 }
 
-/** A slim read-only bar for a progress figure (0 to 100). */
-export function Bar({ value, label }: { value: unknown; label: string }) {
-  const n = Math.max(0, Math.min(100, Number(value ?? 0) || 0));
-  return <Progress value={n} aria-valuenow={Math.round(n)} aria-label={label} className="h-1.5 max-w-64" />;
-}
+/** A progress figure as a number between 0 and 100. */
+export const pct = (value: unknown) => Math.max(0, Math.min(100, Number(value ?? 0) || 0));
 
 const TONE: Record<string, "green" | "amber" | "red"> = { "On Track": "green", "At Risk": "amber", "Off Track": "red" };
 
@@ -77,29 +73,28 @@ export function Home() {
       }
     />
   );
-  if (q.isPending) return <>{head}<HomeSkeleton /></>;
-  if (q.isError) return <>{head}<LoadFailed error={q.error} onRetry={() => void q.refetch()} /></>;
+  if (q.isPending) return <PageStack>{head}<HomeSkeleton /></PageStack>;
+  if (q.isError) return <PageStack>{head}<LoadFailed error={q.error} onRetry={() => void q.refetch()} /></PageStack>;
   // The workspace's day, as its people read dates.
   const today = todayIso();
   if (q.data.objectives.length === 0)
     return (
-      <>
+      <PageStack>
         {head}
         <StatePanel kind="empty" icon={Target} title={t("No objectives yet")} action={<ButtonLink to="/e/Objective/new" variant="primary" icon="plus">{t("New objective")}</ButtonLink>}>
           {t("Start with the one the others serve.")}
         </StatePanel>
-      </>
+      </PageStack>
     );
   return (
-    <>
+    <PageStack>
       {head}
-      <QueueGrid className="ob-tree">
+      <QueueGrid columns={1}>
         {tree(q.data.objectives).map(({ row: o, depth }) => {
           const results = q.data.results.filter((r) => r.objective === o.id);
           return (
             <div key={o.id} style={{ marginInlineStart: depth * 24 }}>
-              <Queue title={isolate(String(o.title))} count={results.length}>
-                <QueueItem to={`/e/Objective/${o.id}`} title={t("Progress")} meta={<Bar value={o.progress} label={t("Progress")} />} trailing={<Percent value={o.progress} />} />
+              <Queue title={isolate(String(o.title))} count={results.length} link={{ to: `/e/Objective/${o.id}`, label: t("Open") }} progress={{ value: pct(o.progress), label: t("Progress") }}>
                 {results.map((r) => (
                   <QueueItem
                     key={r.id}
@@ -107,7 +102,7 @@ export function Home() {
                     title={isolate(String(r.title))}
                     meta={
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 whitespace-normal">
-                        <span>{t("{value} of {value2}", { value: String(r.current_value ?? ""), value2: String(r.target_value ?? "") })}</span>
+                        <span>{isolate(t("{value} of {value2}", { value: String(r.current_value ?? ""), value2: String(r.target_value ?? "") }))}</span>
                         {r.confidence ? <Badge tone={TONE[String(r.confidence)] ?? "amber"}>{isolate(String(r.confidence))}</Badge> : null}
                         {r.metric ? <Badge tone="blue">{t("Measured by a certified metric")}</Badge> : r.measure ? <Badge tone="blue">{t("Measured from the records")}</Badge> : null}
                         {due(r, today) ? <Badge tone="amber">{t("Check-in due")}</Badge> : null}
@@ -121,6 +116,6 @@ export function Home() {
           );
         })}
       </QueueGrid>
-    </>
+    </PageStack>
   );
 }
