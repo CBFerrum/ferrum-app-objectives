@@ -7,8 +7,8 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { api, docPath, formatMoment, todayIso, t, isolate } from "@ferrum/client";
 import { Target } from "lucide-react";
-import { Badge, HomeSkeleton, LoadFailed, PageHead, StatePanel, useShellTitle } from "@ferrum/kit";
-import { Bar, Percent } from "./Home";
+import { Badge, HomeSkeleton, LoadFailed, PageHead, PageStack, Progress, StatePanel, useShellTitle } from "@ferrum/kit";
+import { Percent, pct } from "./Home";
 import { change, daysBefore, review, type Row } from "./meeting";
 
 type Get = (entity: string, query: Record<string, string | number | undefined>) => Promise<{ rows: Row[]; next_cursor?: string | null }>;
@@ -58,16 +58,15 @@ export function Review() {
       }
     />
   );
-  if (q.isPending) return <>{head}<HomeSkeleton queues={2} /></>;
-  if (q.isError) return <>{head}<LoadFailed error={q.error} onRetry={() => void q.refetch()} /></>;
+  if (q.isPending) return <PageStack>{head}<HomeSkeleton queues={2} /></PageStack>;
+  if (q.isError) return <PageStack>{head}<LoadFailed error={q.error} onRetry={() => void q.refetch()} /></PageStack>;
   const reviewed = review(q.data.objectives, q.data.results, q.data.checkIns, since);
   return (
-    <>
+    <PageStack>
       {head}
       {reviewed.length === 0 && <StatePanel kind="empty" icon={Target} title={t("No active objectives to review.")} />}
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
       {reviewed.map(({ objective: o, then, now, results, risk }) => (
-        <section key={o.id} className="card card-pad stack" aria-label={String(o.title)}>
+        <section key={o.id} className="card card-pad stack min-w-0" aria-label={String(o.title)}>
           <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <h2 className="text-base font-semibold">
               <Link to={`/e/Objective/${o.id}`}>{isolate(String(o.title))}</Link>
@@ -81,7 +80,7 @@ export function Review() {
                 </span>
               ) : null}
               <span className="flex w-40 items-center gap-2">
-                <Bar value={o.progress} label={t("Progress")} />
+                <Progress value={pct(o.progress)} label={t("Progress")} />
                 <Percent value={o.progress} />
               </span>
             </span>
@@ -115,7 +114,7 @@ export function Review() {
                         <Link to={`/e/KeyResult/${r.kr.id}`}>{isolate(String(r.kr.title))}</Link>
                         <span className="faint">
                           {isolate(" ")}
-                          {t("· {value} of {value2}", { value: String(r.kr.current_value ?? ""), value2: String(r.kr.target_value ?? "") })}
+                          {isolate(t("· {value} of {value2}", { value: String(r.kr.current_value ?? ""), value2: String(r.kr.target_value ?? "") }))}
                         </span>
                       </td>
                       <td className="num">{r.then}%</td>
@@ -131,7 +130,6 @@ export function Review() {
           )}
         </section>
       ))}
-      </div>
-    </>
+    </PageStack>
   );
 }

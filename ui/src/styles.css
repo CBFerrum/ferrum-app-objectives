@@ -3,8 +3,3 @@
 @import "../../../ferrum/web/src/index.css";
 @source "../../../ferrum/web/src";
 @source ".";
-
-/* The objectives are one column, a child indented under its parent. */
-.ob-tree {
-  grid-template-columns: minmax(0, 1fr);
-}
