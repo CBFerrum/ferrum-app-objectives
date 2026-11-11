@@ -10,16 +10,17 @@
   "New objective": "هدف جديد",
   "No active objectives to review.": "لا أهداف نشطة للمراجعة.",
   "No key results of its own: its progress is the objectives aligned to it.": "لا نتائج رئيسية خاصة به: تقدّمه هو الأهداف المتوافقة معه.",
-  "No objectives yet: start with the one the others serve.": "لا أهداف بعد: ابدأ بالهدف الذي تخدمه الأهداف الأخرى.",
+  "No objectives yet": "لا أهداف بعد",
   "Now": "الآن",
   "Objectives": "الأهداف",
   "Off track": "خارج المسار",
+  "Progress": "التقدّم",
   "Review": "المراجعة",
   "Since": "منذ",
+  "Start with the one the others serve.": "ابدأ بالهدف الذي تخدمه الأهداف الأخرى.",
   "The key results of": "النتائج الرئيسية لـ",
-  "The tree": "الشجرة",
   "Then": "ثم",
   "key results {then}% → {now}% (": "النتائج الرئيسية {then}% ← {now}% (",
-  "· {value} of {value2}": "· {value} من {value2}",
-  "· {value} of {value2} · {value3}%": "· {value} من {value2} · {value3}%"
+  "{value} of {value2}": "{value} من {value2}",
+  "· {value} of {value2}": "· {value} من {value2}"
 }

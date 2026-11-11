@@ -4,14 +4,7 @@
 @source "../../../ferrum/web/src";
 @source ".";
 
-.np-page {
-  display: grid;
-  gap: 16px;
-  padding: 16px;
-}
-
-.np-columns {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+/* The objectives are one column, a child indented under its parent. */
+.ob-tree {
+  grid-template-columns: minmax(0, 1fr);
 }
