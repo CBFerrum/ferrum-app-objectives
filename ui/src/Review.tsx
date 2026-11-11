@@ -66,7 +66,7 @@ export function Review() {
       {head}
       {reviewed.length === 0 && <StatePanel kind="empty" icon={Target} title={t("No active objectives to review.")} />}
       {reviewed.map(({ objective: o, then, now, results, risk }) => (
-        <section key={o.id} className="card card-pad stack min-w-0" aria-label={String(o.title)}>
+        <section key={o.id} className="card card-pad stack" aria-label={String(o.title)}>
           <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <h2 className="text-base font-semibold">
               <Link to={`/e/Objective/${o.id}`}>{isolate(String(o.title))}</Link>
