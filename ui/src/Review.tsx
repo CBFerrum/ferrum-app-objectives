@@ -6,7 +6,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
 import { api, docPath, formatMoment, todayIso, t, isolate } from "@ferrum/client";
-import { Badge, ErrorState, ListSkeleton, StatePanel, useShellTitle } from "@ferrum/kit";
+import { Target } from "lucide-react";
+import { Badge, HomeSkeleton, LoadFailed, PageHead, StatePanel, useShellTitle } from "@ferrum/kit";
+import { Bar, Percent } from "./Home";
 import { change, daysBefore, review, type Row } from "./meeting";
 
 type Get = (entity: string, query: Record<string, string | number | undefined>) => Promise<{ rows: Row[]; next_cursor?: string | null }>;
@@ -44,37 +46,48 @@ export function Review() {
       return { objectives, results, checkIns };
     },
   });
-  if (q.isPending) return <ListSkeleton className="np-page" />;
-  if (q.isError) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
-  const reviewed = review(q.data.objectives, q.data.results, q.data.checkIns, since);
-  return (
-    <div className="np-page">
-      <header className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-        <h2>{t("Review")}</h2>
-        <label className="row" style={{ gap: 8 }}>
+  const head = (
+    <PageHead
+      title={t("Review")}
+      back={{ to: "/", label: t("Objectives") }}
+      actions={
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
           <span>{t("Since")}</span>
           <input type="date" className="input" value={since} max={today} onChange={(e) => e.target.value && setSince(e.target.value)} />
         </label>
-      </header>
-      {reviewed.length === 0 && <StatePanel kind="empty" title={t("No active objectives to review.")} />}
+      }
+    />
+  );
+  if (q.isPending) return <>{head}<HomeSkeleton queues={2} /></>;
+  if (q.isError) return <>{head}<LoadFailed error={q.error} onRetry={() => void q.refetch()} /></>;
+  const reviewed = review(q.data.objectives, q.data.results, q.data.checkIns, since);
+  return (
+    <>
+      {head}
+      {reviewed.length === 0 && <StatePanel kind="empty" icon={Target} title={t("No active objectives to review.")} />}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
       {reviewed.map(({ objective: o, then, now, results, risk }) => (
         <section key={o.id} className="card card-pad stack" aria-label={String(o.title)}>
-          <header className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-            <h3>
-              <Link to={`/e/Objective/${o.id}`}>{isolate(String(o.title))}</Link> <span className="faint">· {isolate(String(o.owner ?? ""))}</span>
-            </h3>
-            <span className="row" style={{ gap: 8 }}>
+          <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <h2 className="text-base font-semibold">
+              <Link to={`/e/Objective/${o.id}`}>{isolate(String(o.title))}</Link>
+              {o.owner ? <span className="ms-2 text-sm font-normal text-muted-foreground">{isolate(String(o.owner))}</span> : null}
+            </h2>
+            <span className="flex items-center gap-3">
               {risk === 2 ? <Badge tone="red">{t("Off track")}</Badge> : risk === 1 ? <Badge tone="amber">{t("At risk")}</Badge> : null}
-              <strong>{isolate(String(o.progress ?? 0))}%</strong>
               {then !== null && now !== null ? (
-                <span className="faint">
+                <span className="text-xs text-muted-foreground tabular-nums">
                   {t("key results {then}% → {now}% (", { then, now })}{isolate(change(then, now))})
                 </span>
               ) : null}
+              <span className="flex w-40 items-center gap-2">
+                <Bar value={o.progress} label={t("Progress")} />
+                <Percent value={o.progress} />
+              </span>
             </span>
           </header>
           {results.length === 0 ? (
-            <p className="faint">{t("No key results of its own: its progress is the objectives aligned to it.")}</p>
+            <p className="text-sm text-muted-foreground">{t("No key results of its own: its progress is the objectives aligned to it.")}</p>
           ) : (
             <div className="table-wrap">
               <table className="table">
@@ -118,6 +131,7 @@ export function Review() {
           )}
         </section>
       ))}
-    </div>
+      </div>
+    </>
   );
 }
