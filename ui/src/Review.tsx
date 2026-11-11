@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
 import { api, docPath, formatMoment, todayIso, t, isolate } from "@ferrum/client";
-import { Badge, ErrorState, PageLoading, useShellTitle } from "@ferrum/kit";
+import { Badge, ErrorState, ListSkeleton, StatePanel, useShellTitle } from "@ferrum/kit";
 import { change, daysBefore, review, type Row } from "./meeting";
 
 type Get = (entity: string, query: Record<string, string | number | undefined>) => Promise<{ rows: Row[]; next_cursor?: string | null }>;
@@ -44,7 +44,7 @@ export function Review() {
       return { objectives, results, checkIns };
     },
   });
-  if (q.isPending) return <PageLoading />;
+  if (q.isPending) return <ListSkeleton className="np-page" />;
   if (q.isError) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const reviewed = review(q.data.objectives, q.data.results, q.data.checkIns, since);
   return (
@@ -56,7 +56,7 @@ export function Review() {
           <input type="date" className="input" value={since} max={today} onChange={(e) => e.target.value && setSince(e.target.value)} />
         </label>
       </header>
-      {reviewed.length === 0 && <p className="faint">{t("No active objectives to review.")}</p>}
+      {reviewed.length === 0 && <StatePanel kind="empty" title={t("No active objectives to review.")} />}
       {reviewed.map(({ objective: o, then, now, results, risk }) => (
         <section key={o.id} className="card card-pad stack" aria-label={String(o.title)}>
           <header className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
