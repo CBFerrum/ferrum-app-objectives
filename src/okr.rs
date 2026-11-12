@@ -332,9 +332,35 @@ impl DocHook for ObjectiveHook {
         "objectives.objective"
     }
 
+    async fn before_validate(&self, hc: &mut HookCtx<'_>, doc: &mut Doc) -> Result<()> {
+        // Objectives that name no cycle fall in the default one.
+        if id(doc, "cycle").is_none() && hc.ctx.schema.entity("OkrCycle").is_some() {
+            let default: Option<Uuid> = sqlx::query_scalar("select id from e_okr_cycle where tenant_id = $1 and is_default order by created_at, id limit 1")
+                .bind(hc.ctx.tenant)
+                .fetch_optional(&mut **hc.tx)
+                .await?;
+            if let Some(c) = default {
+                doc.insert("cycle".into(), json!(c.to_string()));
+            }
+        }
+        Ok(())
+    }
+
     async fn validate(&self, hc: &mut HookCtx<'_>, doc: &Doc) -> Result<()> {
         if d(doc, "weight") < Decimal::ZERO {
             return Err(Error::field("weight", "is 0 or more"));
+        }
+        if let Some(cycle) = id(doc, "cycle") {
+            let (name, status): (Option<String>, Option<String>) =
+                sqlx::query_as("select cycle_name, status from e_okr_cycle where tenant_id = $1 and id = $2")
+                    .bind(hc.ctx.tenant)
+                    .bind(cycle)
+                    .fetch_optional(&mut **hc.tx)
+                    .await?
+                    .ok_or_else(|| Error::field("cycle", "does not exist"))?;
+            if status.as_deref() == Some("Closed") && !hc.ctx.is_system {
+                return Err(Error::field("cycle", format!("cycle {} is closed: nothing in it changes", name.unwrap_or_default())));
+            }
         }
         let (from, to) = (day(doc, "starts_on"), day(doc, "ends_on"));
         if let (Some(f), Some(t)) = (from, to)
@@ -343,11 +369,20 @@ impl DocHook for ObjectiveHook {
             return Err(Error::field("ends_on", "is after the objective starts"));
         }
         let Some(parent) = id(doc, "parent") else { return Ok(()) };
-        let period: Option<(NaiveDate, NaiveDate)> = sqlx::query_as("select starts_on, ends_on from e_objective where tenant_id = $1 and id = $2")
-            .bind(hc.ctx.tenant)
-            .bind(parent)
-            .fetch_optional(&mut **hc.tx)
-            .await?;
+        let above: Option<(NaiveDate, NaiveDate, Option<String>)> =
+            sqlx::query_as("select starts_on, ends_on, level from e_objective where tenant_id = $1 and id = $2")
+                .bind(hc.ctx.tenant)
+                .bind(parent)
+                .fetch_optional(&mut **hc.tx)
+                .await?;
+        // Company above Team above Person: an objective aligns to one of a higher level.
+        let rank = |l: Option<&str>| LEVELS.iter().position(|x| Some(*x) == l);
+        if let (Some(mine), Some(theirs)) = (rank(s(doc, "level")), rank(above.as_ref().and_then(|a| a.2.as_deref())))
+            && theirs >= mine
+        {
+            return Err(Error::field("parent", format!("a {} objective aligns to one of a higher level than {}", LEVELS[mine], LEVELS[theirs])));
+        }
+        let period = above.map(|(f, t, _)| (f, t));
         if let (Some((ps, pe)), Some(f), Some(t)) = (period, from, to)
             && (f < ps || t > pe)
         {
@@ -356,17 +391,44 @@ impl DocHook for ObjectiveHook {
         Ok(())
     }
 
-    async fn validate_change(&self, hc: &mut HookCtx<'_>, old: Option<&Doc>, _doc: &Doc) -> Result<()> {
-        if !hc.ctx.is_system && old.is_some_and(|o| s(o, "status") == Some("Closed")) {
+    async fn validate_change(&self, hc: &mut HookCtx<'_>, old: Option<&Doc>, doc: &Doc) -> Result<()> {
+        if hc.ctx.is_system {
+            return Ok(());
+        }
+        let was = old.and_then(|o| s(o, "status"));
+        if was == Some("Closed") {
             return Err(Error::invalid("a closed objective is kept as it closed"));
         }
-        Ok(())
+        match (was, s(doc, "status")) {
+            (_, Some("Closed")) => Err(Error::field("status", "an objective closes by Close It, which scores it")),
+            (Some("Active"), Some("Draft")) => Err(Error::field("status", "an active objective does not go back to draft")),
+            _ => Ok(()),
+        }
     }
 
     async fn after_save(&self, hc: &mut HookCtx<'_>, doc: &Doc, old: Option<&Doc>) -> Result<()> {
         let system = elevated(hc.ctx);
         if let Some(me) = id(doc, "id") {
             roll_up(hc.kernel, &system, hc.tx, me).await?;
+            // Whether it is private is copied onto its key results and check-ins, which permission
+            // rules read: a change reaches them in the same transaction.
+            if old.is_some_and(|o| b(o, "private") != b(doc, "private")) {
+                sqlx::query("update e_key_result set objective_private = $3 where tenant_id = $1 and objective = $2")
+                    .bind(hc.ctx.tenant)
+                    .bind(me)
+                    .bind(b(doc, "private"))
+                    .execute(&mut **hc.tx)
+                    .await?;
+                sqlx::query(
+                    "update e_check_in c set objective_private = $3 from e_key_result k \
+                     where c.tenant_id = $1 and k.tenant_id = $1 and k.id = c.key_result and k.objective = $2",
+                )
+                .bind(hc.ctx.tenant)
+                .bind(me)
+                .bind(b(doc, "private"))
+                .execute(&mut **hc.tx)
+                .await?;
+            }
         }
         if let Some(before) = old.and_then(|o| id(o, "parent"))
             && Some(before) != id(doc, "parent")
@@ -380,6 +442,17 @@ impl DocHook for ObjectiveHook {
         if name != "close_objective" {
             return Ok(None);
         }
+        close(hc, doc).await.map(Some)
+    }
+}
+
+/// Levels of objectives, highest first.
+const LEVELS: [&str; 3] = ["Company", "Team", "Person"];
+
+/// Closes an objective: its progress kept as its score, told on the workspace's scale and graded,
+/// and each of its key results with it.
+async fn close(hc: &mut HookCtx<'_>, doc: &Doc) -> Result<Value> {
+    {
         let objective = id(doc, "id").ok_or_else(|| Error::internal("an objective without an id"))?;
         let score = d(doc, "progress");
         let set: Option<(Option<String>, Option<Decimal>, Option<Decimal>)> =
@@ -405,7 +478,42 @@ impl DocHook for ObjectiveHook {
             let graded_values = json!({"score": money(score), "score_on_scale": shown, "grade": grade});
             hc.kernel.set_values_tx(&elevated(hc.ctx), hc.tx, "KeyResult", result, obj(graded_values)).await?;
         }
-        Ok(Some(values))
+        Ok(values)
+    }
+}
+
+/// A cycle: started, and closed with every objective in it (each scored as Close It scores one).
+pub struct CycleHook;
+
+#[async_trait]
+impl DocHook for CycleHook {
+    fn name(&self) -> &'static str {
+        "objectives.cycle"
+    }
+
+    async fn action(&self, hc: &mut HookCtx<'_>, name: &str, doc: &Doc, _params: &Value) -> Result<Option<Value>> {
+        let cycle = id(doc, "id").ok_or_else(|| Error::internal("a cycle without an id"))?;
+        let to = match name {
+            "start_cycle" => "Active",
+            "close_cycle" => "Closed",
+            _ => return Ok(None),
+        };
+        let mut closed = 0;
+        if to == "Closed" {
+            let open: Vec<Uuid> =
+                sqlx::query_scalar("select id from e_objective where tenant_id = $1 and cycle = $2 and status is distinct from 'Closed' order by id")
+                    .bind(hc.ctx.tenant)
+                    .bind(cycle)
+                    .fetch_all(&mut **hc.tx)
+                    .await?;
+            for o in open {
+                let objective = hc.kernel.get_tx(&elevated(hc.ctx), hc.tx, "Objective", o, true).await?;
+                close(hc, &objective).await?;
+                closed += 1;
+            }
+        }
+        hc.kernel.set_values_tx(&elevated(hc.ctx), hc.tx, "OkrCycle", cycle, obj(json!({"status": to}))).await?;
+        Ok(Some(json!({"status": to, "objectives_closed": closed})))
     }
 }
 
@@ -591,6 +699,9 @@ impl DocHook for CheckInHook {
         let (_, from, to, status) = row.ok_or_else(|| Error::field("key_result", "is required"))?;
         if status.as_deref() == Some("Closed") {
             return Err(Error::field("key_result", "its objective is closed: it takes no more check-ins"));
+        }
+        if status.as_deref() == Some("Draft") {
+            return Err(Error::field("key_result", "its objective is a draft: make it active to check in"));
         }
         if on < from || on > to {
             return Err(Error::field("date", format!("falls within the objective's period, {from} to {to}")));

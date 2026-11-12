@@ -1,5 +1,5 @@
 package: objectives
-version: 0.1.0
+version: 0.2.0
 label: Objectives
 description: "Objectives aligned to their parents, key results measured by check-ins, progress rolled up, and the projects and portfolios behind them"
 depends: [core, project_records, projects]
@@ -9,21 +9,46 @@ modules:
     label: Objectives
     icon: folder-kanban
     order: 60
-    items: [Objective, KeyResult, CheckIn, ObjectivesSettings]
+    items: [Objective, KeyResult, CheckIn, OkrCycle, ObjectivesSettings]
 
 roles:
   - name: Objectives Owner
-    description: Sets objectives and their key results, checks in on them and closes them.
+    description: Sets objectives and their key results, checks in on them and closes them; plans and closes cycles. A private objective is its owner's and its people's alone.
     permissions:
-      - {entity: Objective, read: true, write: true, create: true, export: true}
-      - {entity: KeyResult, read: true, write: true, create: true, export: true}
-      - {entity: CheckIn, read: true, write: true, create: true}
+      - {entity: Objective, read: true, write: true, create: true, export: true, where: {private: false}}
+      - {entity: Objective, read: true, write: true, create: true, export: true, via: owner}
+      - {entity: Objective, read: true, via: people.person}
+      - {entity: KeyResult, read: true, write: true, create: true, export: true, where: {objective_private: false}}
+      - {entity: KeyResult, read: true, write: true, create: true, export: true, via: objective.owner}
+      - {entity: KeyResult, read: true, via: objective.people.person}
+      - {entity: CheckIn, read: true, write: true, create: true, where: {objective_private: false}}
+      - {entity: CheckIn, read: true, write: true, create: true, via: key_result.objective.owner}
+      - {entity: CheckIn, read: true, via: key_result.objective.people.person}
+      - {entity: OkrCycle, read: true, write: true, create: true}
       - {entity: ObjectivesSettings, read: true}
       - {entity: Project, read: true}
       - {entity: Portfolio, read: true}
   - name: Objectives Viewer
-    description: Follows the objectives, their key results and check-ins.
+    description: Follows the objectives, their key results and check-ins, but for private ones not theirs.
     permissions:
-      - {entity: Objective, read: true}
-      - {entity: KeyResult, read: true}
-      - {entity: CheckIn, read: true}
+      - {entity: Objective, read: true, where: {private: false}}
+      - {entity: Objective, read: true, via: owner}
+      - {entity: Objective, read: true, via: people.person}
+      - {entity: KeyResult, read: true, where: {objective_private: false}}
+      - {entity: KeyResult, read: true, via: objective.owner}
+      - {entity: KeyResult, read: true, via: objective.people.person}
+      - {entity: CheckIn, read: true, where: {objective_private: false}}
+      - {entity: CheckIn, read: true, via: key_result.objective.owner}
+      - {entity: CheckIn, read: true, via: key_result.objective.people.person}
+      - {entity: OkrCycle, read: true}
+
+# The cycle every workspace starts with (sql/001_cycles.sql gives a workspace already there the same,
+# holding the objectives it has).
+seed:
+  - entity: OkrCycle
+    key: [cycle_name]
+    records:
+      - {cycle_name: Default, is_default: true, status: Active}
+
+personal_data:
+  - {entity: Objective, match: people.person, retain: "Objective records"}
