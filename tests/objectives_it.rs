@@ -337,4 +337,78 @@ async fn scenario() {
     refused(t.k.insert(&viewer, "Objective", obj(objective("Mine", None, q_start, q_end))).await, "forbidden", "");
     refused(t.k.insert(&viewer, "CheckIn", obj(check(cost, today, "25", "On Track"))).await, "forbidden", "");
     assert_eq!(t.k.list(&viewer, "KeyResult", &ListQuery::default()).await.unwrap().rows.len(), 8, "the viewer follows them");
+
+    // ───────────── cycles, privacy, drafts and levels (PJ-70) ─────────────
+    let default =
+        t.k.list(&a, "OkrCycle", &ListQuery { filters: ferrum_kernel::query::parse_filters(&json!({"is_default": true})).unwrap(), ..Default::default() })
+            .await
+            .unwrap()
+            .rows;
+    assert_eq!(t.get("Objective", grow).await["cycle"], default[0]["id"], "an objective naming no cycle is in the default one");
+    let q =
+        uid(&t.insert(&owner, "OkrCycle", json!({"cycle_name": "This quarter", "starts_on": q_start.to_string(), "ends_on": q_end.to_string()})).await["id"]);
+    assert_eq!(t.get("OkrCycle", q).await["status"], "Planning");
+    t.k.run_action(&owner, "OkrCycle", q, "start_cycle", Value::Null).await.expect("started");
+    let with = |title: &str, extra: Value| {
+        let mut v = objective(title, None, q_start, q_end);
+        v.as_object_mut().unwrap().extend(obj(extra));
+        v.as_object_mut().unwrap().insert("cycle".into(), json!(q.to_string()));
+        v
+    };
+    // Levels: a team objective aligns to the company's, never the other way.
+    let company_goal = uid(&t.insert(&owner, "Objective", with("Be the best", json!({"level": "Company"}))).await["id"]);
+    let team_goal = uid(&t.insert(&owner, "Objective", with("Ship weekly", json!({"level": "Team", "parent": company_goal.to_string()}))).await["id"]);
+    refused(
+        t.k.insert(&owner, "Objective", obj(with("Upside down", json!({"level": "Company", "parent": team_goal.to_string()})))).await,
+        "invalid",
+        "aligns to one of a higher level",
+    );
+    // A draft takes no check-ins until it is active, and an active one does not go back.
+    let draft = uid(&t.insert(&owner, "Objective", with("Still thinking", json!({"status": "Draft"}))).await["id"]);
+    let draft_kr =
+        uid(&t.insert(&owner, "KeyResult", json!({"objective": draft.to_string(), "title": "Ideas", "start_value": "0", "target_value": "10"})).await["id"]);
+    refused(t.k.insert(&owner, "CheckIn", obj(check(draft_kr, today, "1", "On Track"))).await, "invalid", "is a draft");
+    t.k.update(&owner, "Objective", draft, obj(json!({"status": "Active"})), None).await.expect("active");
+    t.insert(&owner, "CheckIn", check(draft_kr, today, "5", "On Track")).await;
+    refused(t.k.update(&owner, "Objective", draft, obj(json!({"status": "Draft"})), None).await, "invalid", "does not go back to draft");
+    refused(t.k.update(&owner, "Objective", draft, obj(json!({"status": "Closed"})), None).await, "invalid", "closes by Close It");
+    // Private: its owner and its people see it, its key results and check-ins; nobody else does.
+    let insider = t.user("insider@goals.test", &["Objectives Viewer"]).await;
+    let other_owner = t.user("cfo@goals.test", &["Objectives Owner"]).await;
+    let secret = uid(&t.insert(&owner, "Objective", with("Buy a rival", json!({"private": true, "people": [{"person": "insider@goals.test"}]}))).await["id"]);
+    let secret_kr = uid(&t
+        .insert(&owner, "KeyResult", json!({"objective": secret.to_string(), "title": "Talks held", "start_value": "0", "target_value": "3"}))
+        .await["id"]);
+    t.insert(&owner, "CheckIn", check(secret_kr, today, "1", "On Track")).await;
+    for who in [&insider, &owner] {
+        t.k.get(who, "Objective", secret, false).await.expect("theirs to see");
+        t.k.get(who, "KeyResult", secret_kr, false).await.expect("and its key results");
+        assert_eq!(
+            t.k.list(
+                who,
+                "CheckIn",
+                &ListQuery { filters: ferrum_kernel::query::parse_filters(&json!({"key_result": secret_kr.to_string()})).unwrap(), ..Default::default() }
+            )
+            .await
+            .unwrap()
+            .rows
+            .len(),
+            1
+        );
+    }
+    for who in [&viewer, &other_owner] {
+        refused(t.k.get(who, "Objective", secret, false).await, "not found", "");
+        refused(t.k.get(who, "KeyResult", secret_kr, false).await, "not found", "");
+        assert!(t.k.list(who, "CheckIn", &ListQuery::default()).await.unwrap().rows.iter().all(|c| c["key_result"] != json!(secret_kr.to_string())));
+    }
+    refused(t.k.update(&insider, "Objective", secret, obj(json!({"notes": "mine"})), None).await, "forbidden", "");
+    t.k.get(&viewer, "Objective", team_goal, false).await.expect("an open one is everyone's to follow");
+    t.k.update(&owner, "Objective", secret, obj(json!({"private": false})), None).await.expect("opened");
+    t.k.get(&viewer, "KeyResult", secret_kr, false).await.expect("opened, its key results with it");
+    // Closing the cycle closes and scores what is in it, and nothing in it changes after.
+    let out = t.k.run_action(&owner, "OkrCycle", q, "close_cycle", Value::Null).await.expect("closed");
+    assert_eq!(out["objectives_closed"], json!(4), "{out}");
+    let scored = t.get("Objective", draft).await;
+    assert_eq!((scored["status"].as_str(), dec(&scored["score"])), (Some("Closed"), 50.0));
+    refused(t.k.insert(&owner, "Objective", obj(with("Too late", json!({})))).await, "invalid", "is closed");
 }

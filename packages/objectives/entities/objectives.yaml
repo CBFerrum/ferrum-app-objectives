@@ -4,6 +4,32 @@
   fields:
     - {name: project, type: link, to: Project, required: true, in_list: true}
 
+- name: ObjectivePerson
+  label: Person
+  kind: child
+  fields:
+    - {name: person, type: email, required: true, in_list: true}
+
+- name: OkrCycle
+  label: Cycle
+  label_plural: Cycles
+  kind: master
+  module: objectives
+  title_field: cycle_name
+  description: "A period objectives are set for (a quarter, a year): planned, then active, then closed, when every objective in it closes with its score and nothing in it changes again. Objectives that name no cycle fall in the default one."
+  fields:
+    - {name: cycle_name, type: data, label: Name, required: true, unique: true, in_list: true}
+    - {name: starts_on, type: date, in_list: true}
+    - {name: ends_on, type: date, in_list: true}
+    - {name: status, type: select, options: [Planning, Active, Closed], default: Planning, read_only: true, no_copy: true, in_list: true, in_filter: true}
+    - {name: is_default, type: check, label: Default, in_list: true, description: Objectives that name no cycle fall in it}
+  rules:
+    - {name: ends_on, check: "doc.ends_on == null || doc.starts_on == null || doc.ends_on >= doc.starts_on", message: "A cycle cannot end before it starts"}
+  actions:
+    - {name: start_cycle, label: Start It, permission: write, condition: "doc.status == 'Planning'"}
+    - {name: close_cycle, label: Close It, permission: write, condition: "doc.status != 'Closed'", confirm: "Close the cycle? Each of its objectives closes with its score, and nothing in it changes after."}
+  list: {columns: [cycle_name, starts_on, ends_on, status, is_default], sort: starts_on desc}
+
 - name: Objective
   label: Objective
   label_plural: Objectives
@@ -14,20 +40,25 @@
   fields:
     - {name: title, type: data, required: true, in_list: true}
     - {name: owner, type: email, required: true, default_expr: "user.email", in_list: true, in_filter: true, description: "Who answers for it: whoever records it, unless they name someone"}
-    - {name: parent, type: link, to: Objective, in_list: true, label: Aligned To}
+    - {name: parent, type: link, to: Objective, in_list: true, label: Aligned To, description: "An objective of a higher level, when both have one"}
+    - {name: cycle, type: link, to: OkrCycle, in_list: true, in_filter: true, description: "The period it is set for; empty: the default cycle"}
+    - {name: level, type: select, options: [Company, Team, Person], in_list: true, in_filter: true, description: "Company above Team above Person: an objective aligns to one of a higher level"}
+    - {name: private, type: check, in_filter: true, description: "Only its owner and the people listed see it, its key results and check-ins"}
+    - {name: people, type: table, of: ObjectivePerson, description: "Who else sees it when it is private: its team, or whom it is shared with"}
     - {name: portfolio, type: link, to: Portfolio, in_filter: true}
     - {name: starts_on, type: date, required: true, in_list: true}
     - {name: ends_on, type: date, required: true, in_list: true}
     - {name: weight, type: decimal, default: 1, description: "How much it counts towards the objective it is aligned to, against the others there; 0 for not at all"}
     - {name: progress, type: percent, read_only: true, no_copy: true, in_list: true}
-    - {name: status, type: select, options: [Active, Closed], default: Active, read_only: true, no_copy: true, in_list: true, in_filter: true}
+    - {name: status, type: select, options: [Draft, Active, Closed], default: Active, no_copy: true, in_list: true, in_filter: true,
+       description: "Draft: being written, takes no check-ins; Active: under way; Closed: scored by Close It, and kept as it closed"}
     - {name: score, type: percent, read_only: true, no_copy: true, description: "Its progress when it closed"}
     - {name: score_on_scale, type: data, read_only: true, no_copy: true, label: Scored, description: "Its score on the workspace's scale when it closed"}
     - {name: grade, type: select, options: [Missed, Progress Made, Achieved], read_only: true, no_copy: true, in_list: true, in_filter: true, description: "Its score against the workspace's grades when it closed"}
     - {name: notes, type: text}
   actions:
     - {name: close_objective, label: Close It, permission: write, condition: "doc.status == 'Active'"}
-  list: {columns: [title, owner, parent, ends_on, progress, status], sort: ends_on asc}
+  list: {columns: [title, owner, parent, cycle, level, ends_on, progress, status], sort: ends_on asc}
 
 - name: KeyResult
   label: Key Result
@@ -38,6 +69,7 @@
   description: How an objective is measured, from a start to a target. Check-ins move it, typed by its owner or measured from the records; its progress is how far along that way it is.
   fields:
     - {name: objective, type: link, to: Objective, required: true, in_list: true, in_filter: true}
+    - {name: objective_private, type: check, fetch_from: objective.private, read_only: true, hidden: true, no_copy: true, description: "Its objective is private (kept in step with it)"}
     - {name: title, type: data, required: true, in_list: true}
     - {name: kind, type: select, options: [Increase, Decrease, Milestone], default: Increase, required: true, in_list: true}
     - {name: start_value, type: decimal, default: 0}
@@ -69,6 +101,7 @@
   description: Where a key result stands on a day, and how confident its owner is; its latest by day is the key result's. A key result measured from the records has its value measured, not typed.
   fields:
     - {name: key_result, type: link, to: KeyResult, required: true, in_list: true, in_filter: true}
+    - {name: objective_private, type: check, fetch_from: key_result.objective_private, read_only: true, hidden: true, no_copy: true, description: "Its objective is private (kept in step with it)"}
     - {name: date, type: date, required: true, in_list: true}
     - {name: value, type: decimal, in_list: true, description: "For a milestone, 1 when it is done. Left empty for a key result measured from the records: it is measured when the check-in is saved"}
     - {name: confidence, type: select, options: [On Track, At Risk, Off Track], default: On Track, required: true, in_list: true}
