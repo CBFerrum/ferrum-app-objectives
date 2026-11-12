@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0
+
+Package `objectives` 0.2.0 (PJ-70, and the cycles, privacy and lifecycle the audit noted):
+- **Cycles** (`OkrCycle`): a name, dates and a state, Planning, Active (Start It) or Closed (Close It). Closing a cycle closes every objective in it with its score, as Close It does one, and nothing in a closed cycle changes or is added after. An objective names its cycle; one naming none falls in the default cycle. A new workspace starts with Default, active; `sql/001_cycles.sql` gives a workspace already there the same, holding every objective it has.
+- **Private objectives**: `private` limits an objective, its key results and its check-ins to its owner and the people listed on it (`people`); the others stay everyone's with an Objectives role, as before. The permission rules are path rules on the package's roles (`via: owner`, `via: people.person`, `where: {private: false}`); the SQL gives a workspace's existing roles the same rules, in place of those that read everything (only where they were still as the package gave them).
+- **Drafts**: an objective may start as Draft (it takes no check-ins), becomes Active, and closes only by Close It; an active one does not go back to draft, and a closed one is kept as it closed.
+- **Levels**: Company, Team or Person; an objective aligns only to one of a higher level when both have one.
+
 ## 0.7.2
 
 Rebuilt with Ferrum-Frontend 45dad7f, the design system as tuned after the landed build was reviewed. The left menu's icons are chosen so that none repeats on more than three rows and each fits its row; their drawings load beside the first page instead of inside it, so the page starts lighter; a row that scrolls sideways fades at the edge where there is more, in every browser and with reduced motion; a printed record leaves out empty fields and keeps its totals with the table; menus and popovers sit inside the page's landmarks for assistive technology; a selection bar folds what does not fit into More on a narrow screen. Nothing else changes.
