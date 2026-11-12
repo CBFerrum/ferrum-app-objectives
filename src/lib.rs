@@ -35,7 +35,8 @@ pub fn register(hooks: &mut HookRegistry) {
     hooks
         .register("Objective", Arc::new(okr::ObjectiveHook))
         .register("KeyResult", Arc::new(okr::KeyResultHook))
-        .register("CheckIn", Arc::new(okr::CheckInHook));
+        .register("CheckIn", Arc::new(okr::CheckInHook))
+        .register("OkrCycle", Arc::new(okr::CycleHook));
 }
 
 /// The connector with Metrics' package.
