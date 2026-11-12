@@ -98,6 +98,7 @@ Metrics:
 | **0.5.4** | Rebuilt with Ferrum-Frontend 63280d3: right to left, pages mirror; the records pages' words in Arabic and Hindi. |
 | **0.7.0** | A key result measured by a certified metric reads Metrics' own value for its owner, so composed and currency-converted metrics measure it as Metrics defines them. |
 | **0.7.1** | The redesigned interface: the upgraded design system, shaped loading, told-apart states. |
+| **0.8.0** | Cycles that close and freeze their objectives; private objectives; drafts; company, team and person levels. |
 | **0.7.2** | Rebuilt on the tuned design system: better menu icons, a lighter first page, a visible scroll cue, cleaner print. |
 | **0.5.3** | Rebuilt with Ferrum-Frontend a64416a: a box whose default is 1 shows ticked; action dialogs say every refusal and ask once. |
 | **0.5.2** | The review over every key result and check-in, not one page of 500. |
