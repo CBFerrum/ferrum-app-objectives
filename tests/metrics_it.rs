@@ -96,7 +96,7 @@ async fn scenario() {
     ferrum_domain::register(&mut hooks);
     hooks.app("erp", &[], ferrum_app_erp::register);
     ferrum_app_projects::register(&mut hooks);
-    ferrum_app_metrics::register(&mut hooks);
+    hooks.app("metrics", &[], ferrum_app_metrics::register);
     ferrum_app_objectives::register(&mut hooks);
     let settings = KernelSettings { secret_key: Some(SecretKey::new([7u8; 32])), ..Default::default() };
     let k = Kernel::boot(db, catalog, hooks, settings, None).await.expect("boot");
