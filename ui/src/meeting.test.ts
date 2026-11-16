@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { setTimeZone } from "@ferrum/client";
 import { change, daysBefore, progressOf, review, valueOn, weighted, type Row } from "./meeting";
 
 describe("the review meeting", () => {
@@ -63,5 +64,19 @@ describe("weights", () => {
       [undefined, "created_at desc", 500],
       ["c2", "created_at desc", 500],
     ]);
+  });
+});
+
+describe("the review page", () => {
+  it("writes the day of the last check-in as it is stored, in a workspace west of UTC too", async () => {
+    const { day } = await import("./Review");
+    // Midnight UTC on 5 Nov is still 4 Nov in Pago Pago (UTC-11): a day with no time must not move to it.
+    setTimeZone("Pacific/Pago_Pago");
+    try {
+      expect(day("2026-11-05")).toBe(new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(2026, 10, 5)));
+      expect(day(null)).toBe("never");
+    } finally {
+      setTimeZone(undefined);
+    }
   });
 });

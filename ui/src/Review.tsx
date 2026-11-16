@@ -5,7 +5,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
-import { api, docPath, formatMoment, todayIso, t, isolate } from "@ferrum/client";
+import { api, docPath, formatDate, todayIso, t, isolate } from "@ferrum/client";
 import { Target } from "lucide-react";
 import { Badge, HomeSkeleton, LoadFailed, PageHead, PageStack, Progress, StatePanel, useShellTitle } from "@ferrum/kit";
 import { Percent, pct } from "./Home";
@@ -29,7 +29,8 @@ export async function every(entity: string, filters: unknown[], extra: Record<st
 
 const TONE: Record<string, "green" | "amber" | "red"> = { "On Track": "green", "At Risk": "amber", "Off Track": "red" };
 
-const day = (at: unknown) => (typeof at === "string" && at ? formatMoment(at, { day: "numeric", month: "short", year: "numeric" }) : "never");
+/** The day of a key result's last check-in (a day with no time, never moved by a zone), or "never". */
+export const day = (at: unknown) => (typeof at === "string" && at ? formatDate(at) : t("never"));
 
 export function Review() {
   useShellTitle(t("Review"));
