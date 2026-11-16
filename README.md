@@ -7,7 +7,7 @@
 
 <br>
 
-[![Version](https://img.shields.io/badge/version-0.8.0-15803d?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.9.0-15803d?style=flat-square)](CHANGELOG.md)
 [![Licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-blue?style=flat-square)](LICENSE)
 [![Ferrum platform](https://img.shields.io/badge/runs%20on-Ferrum-2f5bea?style=flat-square)](https://github.com/CBFerrum/Ferrum)
 ![Rust](https://img.shields.io/badge/Rust-server-b7410e?style=flat-square&logo=rust)
@@ -38,7 +38,7 @@ Objectives is the goals app for Ferrum: an objective tree for a company, its tea
 
 | | |
 |---|---|
-| **Version** | 0.8.0 (package `objectives` 0.2.0; connector `objectives-metrics` 0.1.0) |
+| **Version** | 0.9.0 (package `objectives` 0.3.0; connector `objectives-metrics` 0.1.0) |
 | **Kind** | Its own interface at `/objectives/` (the objective tree and the review page) with Ferrum's records screens for everything else |
 | **What it adds** | 7 entities (Objective, Key Result, Check-in, Cycle, Objectives Settings and two small tables), 2 roles, 1 module, 2 menu pages, 1 notification kind, 1 daily upkeep job; 1 more entity field from the Metrics connector; no reports, no print formats |
 | **Depends on** | Ferrum platform `>=0.3.2, <0.4`; Ferrum Projects `>=0.6` (installing Objectives installs it) |
@@ -325,6 +325,7 @@ Objectives is compared with the OKR and goals products Lattice (Goals), Betterwo
 
 ### ✅ Recently shipped
 
+- [x] **0.9.0** No upgrade history in the package: the SQL that brought older workspaces up to cycles and private objectives is gone.
 - [x] **0.8.0** Cycles that close and freeze their objectives; private objectives; drafts; company, team and person levels.
 - [x] **0.7.2** Rebuilt on the tuned design system: better menu icons, a lighter first page, a visible scroll cue, cleaner print.
 - [x] **0.7.1** The redesigned interface: shaped loading, told-apart states.

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.0
+
+Package `objectives` 0.3.0. Needs the same platform as 0.8.0. No interface change. The `objectives` package has no
+SQL of its own any more, and a database is made afresh.
+
+- **No upgrade history in the package.** `001_cycles.sql` gave a workspace from before 0.8.0 the Default cycle holding
+  its objectives, and replaced the rules its roles had from package 0.1.0 with those that leave private objectives
+  out. A new workspace gets the Default cycle from the package's seed and its roles' rules from the package, and an
+  objective naming no cycle falls in the default one, so the file is gone.
+
 ## 0.8.0
 
 Package `objectives` 0.2.0 (PJ-70, and the cycles, privacy and lifecycle the audit noted):

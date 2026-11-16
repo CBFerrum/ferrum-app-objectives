@@ -1,5 +1,5 @@
 package: objectives
-version: 0.2.0
+version: 0.3.0
 label: Objectives
 description: "Objectives aligned to their parents, key results measured by check-ins, progress rolled up, and the projects and portfolios behind them"
 depends: [core, project_records, projects]
