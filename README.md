@@ -407,7 +407,7 @@ npm test
 ```text
 app.yaml                        the manifest: id, version, requirements, what it adds to Ferrum
 connectors/metrics/app.yaml     the connector with Metrics
-packages/objectives/            entities, roles, the default cycle; sql/ upgrades older workspaces
+packages/objectives/            entities, roles, the default cycle
 packages/objectives_metrics/    adds the Certified Metric field to Key Result
 src/okr.rs                      roll-up, scoring, measuring, reminders, cycles, the rules
 ui/src/                         Home (tree), Review (meeting), words in Arabic and Hindi

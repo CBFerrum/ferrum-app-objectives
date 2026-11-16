@@ -42,8 +42,7 @@ roles:
       - {entity: CheckIn, read: true, via: key_result.objective.people.person}
       - {entity: OkrCycle, read: true}
 
-# The cycle every workspace starts with (sql/001_cycles.sql gives a workspace already there the same,
-# holding the objectives it has).
+# The cycle every workspace starts with.
 seed:
   - entity: OkrCycle
     key: [cycle_name]
