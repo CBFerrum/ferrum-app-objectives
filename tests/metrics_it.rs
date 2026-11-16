@@ -94,7 +94,7 @@ async fn scenario() {
     assert_eq!(catalog.links_out_of_reach(ferrum_app_objectives::CONNECTOR_PACKAGE), Vec::<String>::new(), "whoever names a metric can look it up");
     let mut hooks = HookRegistry::default();
     ferrum_domain::register(&mut hooks);
-    ferrum_app_erp::register(&mut hooks);
+    hooks.app("erp", &[], ferrum_app_erp::register);
     ferrum_app_projects::register(&mut hooks);
     ferrum_app_metrics::register(&mut hooks);
     ferrum_app_objectives::register(&mut hooks);
