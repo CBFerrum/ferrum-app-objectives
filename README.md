@@ -7,7 +7,7 @@
 
 <br>
 
-[![Version](https://img.shields.io/badge/version-0.9.0-15803d?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.9.1-15803d?style=flat-square)](CHANGELOG.md)
 [![Licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-blue?style=flat-square)](LICENSE)
 [![Ferrum platform](https://img.shields.io/badge/runs%20on-Ferrum-2f5bea?style=flat-square)](https://github.com/CBFerrum/Ferrum)
 ![Rust](https://img.shields.io/badge/Rust-server-b7410e?style=flat-square&logo=rust)
@@ -325,6 +325,7 @@ Objectives is compared with the OKR and goals products Lattice (Goals), Betterwo
 
 ### ✅ Recently shipped
 
+- [x] **0.9.1** The review's last check-in written as the day it is; rebuilt on Ferrum-Frontend 06bd1a2 with `mountApp`.
 - [x] **0.9.0** No upgrade history in the package: the SQL that brought older workspaces up to cycles and private objectives is gone.
 - [x] **0.8.0** Cycles that close and freeze their objectives; private objectives; drafts; company, team and person levels.
 - [x] **0.7.2** Rebuilt on the tuned design system: better menu icons, a lighter first page, a visible scroll cue, cleaner print.

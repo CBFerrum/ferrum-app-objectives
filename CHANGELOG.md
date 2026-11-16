@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.1
+
+Needs the same platform as 0.9.0. No database change. Interface only, `ui/dist` rebuilt with Ferrum-Frontend `06bd1a2`.
+
+- The review page writes a key result's last check-in as the day it is stored (a workspace west of UTC saw the day
+  before), and "never" in the page's language.
+- The two routes to the screens apps no longer have (`apps/:app/settings`, `x/:app/:page`) are gone.
+- The page starts through the frontend's `mountApp`, which keeps lists fresh for 30 seconds (Objectives said 5); the
+  interface lint has no baseline file any more.
+
 ## 0.9.0
 
 Package `objectives` 0.3.0. Needs the same platform as 0.8.0. No interface change. The `objectives` package has no
