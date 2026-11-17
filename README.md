@@ -13,7 +13,7 @@
 ![Rust](https://img.shields.io/badge/Rust-server-b7410e?style=flat-square&logo=rust)
 ![TypeScript](https://img.shields.io/badge/React-TypeScript-3178c6?style=flat-square&logo=typescript&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-data-336791?style=flat-square&logo=postgresql&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-6%20Rust%20%C2%B7%208%20UI-16a34a?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-6%20Rust%20%C2%B7%209%20UI-16a34a?style=flat-square)
 
 ### Set objectives, align them, and let the key results measure themselves from the records you already keep.
 
@@ -38,13 +38,13 @@ Objectives is the goals app for Ferrum: an objective tree for a company, its tea
 
 | | |
 |---|---|
-| **Version** | 0.9.0 (package `objectives` 0.3.0; connector `objectives-metrics` 0.1.0) |
+| **Version** | 0.9.1 (package `objectives` 0.3.0; connector `objectives-metrics` 0.1.0) |
 | **Kind** | Its own interface at `/objectives/` (the objective tree and the review page) with Ferrum's records screens for everything else |
 | **What it adds** | 7 entities (Objective, Key Result, Check-in, Cycle, Objectives Settings and two small tables), 2 roles, 1 module, 2 menu pages, 1 notification kind, 1 daily upkeep job; 1 more entity field from the Metrics connector; no reports, no print formats |
 | **Depends on** | Ferrum platform `>=0.3.2, <0.4`; Ferrum Projects `>=0.6` (installing Objectives installs it) |
 | **Works with** | Projects (portfolios and projects), Metrics (certified metrics, optional connector), Home's create menu and notifications |
 | **Languages** | English, Arabic and Hindi (25 interface words and 100 names in each), right-to-left |
-| **Tests** | 6 Rust tests (against a real PostgreSQL), 8 interface tests |
+| **Tests** | 6 Rust tests (against a real PostgreSQL), 9 interface tests |
 | **Licence** | AGPL-3.0-only |
 
 ## 📸 Screenshots
@@ -118,7 +118,7 @@ Objectives is the goals app for Ferrum: an objective tree for a company, its tea
 
 - **Cycle** is a named period (a quarter, a year) with dates and a state: **Planning**, **Active** (Start It) or **Closed** (Close It). A cycle cannot end before it starts.
 - **Closing a cycle** closes every objective in it, each scored as Close It scores one, after a confirmation. Nothing in a closed cycle changes and nothing is added to it.
-- **A default cycle.** Every new workspace starts with a cycle called Default, active. An objective that names no cycle falls in the default one. A workspace that already had objectives gets the same, holding them.
+- **A default cycle.** Every new workspace starts with a cycle called Default, active. An objective that names no cycle falls in the default one.
 - **List filters** by cycle, level, owner and status on the objective list.
 
 ### 📏 Key results
@@ -326,7 +326,6 @@ Objectives is compared with the OKR and goals products Lattice (Goals), Betterwo
 ### ✅ Recently shipped
 
 - [x] **0.9.1** The review's last check-in written as the day it is; rebuilt on Ferrum-Frontend 06bd1a2 with `mountApp`.
-- [x] **0.9.0** No upgrade history in the package: the SQL that brought older workspaces up to cycles and private objectives is gone.
 - [x] **0.8.0** Cycles that close and freeze their objectives; private objectives; drafts; company, team and person levels.
 - [x] **0.7.2** Rebuilt on the tuned design system: better menu icons, a lighter first page, a visible scroll cue, cleaner print.
 - [x] **0.7.1** The redesigned interface: shaped loading, told-apart states.
