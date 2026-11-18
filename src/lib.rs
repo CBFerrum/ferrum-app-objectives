@@ -14,7 +14,7 @@
 mod okr;
 
 use ferrum_domain::reports::ReportSource;
-use ferrum_kernel::{Doc, Error, HookRegistry, Kernel, Result};
+use ferrum_kernel::{Doc, HookRegistry, Kernel, Result};
 use serde_json::Value;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -51,19 +51,10 @@ pub fn reports() -> Vec<Arc<dyn ReportSource>> {
     vec![]
 }
 
-/// Upkeep, in each workspace with the package: the day's measure of key results measured from the
-/// records, and reminders to check in on the others.
-pub async fn maintenance(k: &Kernel) -> Result<()> {
-    let mut tx = k.db.system_tx().await?;
-    let tenants: Vec<Uuid> = sqlx::query_scalar("select id from tenant where status = 'active' order by id").fetch_all(&mut *tx).await?;
-    tx.commit().await?;
-    let mut first_error: Option<Error> = None;
-    for tenant in tenants {
-        if let Err(e) = okr::upkeep(k, tenant).await {
-            first_error.get_or_insert(e);
-        }
-    }
-    first_error.map_or(Ok(()), Err)
+/// Upkeep, for one workspace: the day's measure of key results measured from the records, and reminders to check in
+/// on the others.
+pub async fn maintenance(k: &Kernel, tenant: Uuid) -> Result<()> {
+    okr::upkeep(k, tenant).await
 }
 
 /// A document from JSON.

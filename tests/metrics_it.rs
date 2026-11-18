@@ -99,7 +99,6 @@ async fn scenario() {
     ferrum_app_objectives::register(&mut hooks);
     let k = Kernel::boot(db, catalog, hooks, KernelSettings::default(), None).await.expect("boot");
     ferrum_domain::maintenance(&k).await.expect("partitions");
-    ferrum_app_erp::maintenance(&k).await.expect("partitions");
     let tenant = k
         .create_tenant(NewTenant {
             slug: "goals".into(),
@@ -164,7 +163,7 @@ async fn scenario() {
     // Each day by itself, as the metric is defined now.
     t.insert(&a, "Project", project("Open a second shop")).await;
     t.next_day(kr).await;
-    ferrum_app_objectives::maintenance(&t.k).await.expect("upkeep");
+    ferrum_app_objectives::maintenance(&t.k, t.tenant).await.expect("upkeep");
     let r = t.get("KeyResult", kr).await;
     assert_eq!((dec(&r["current_value"]), r["measure_error"].as_str()), (3.0, None), "the day's measure: {r:?}");
     assert_eq!(t.check_ins(kr).await, 3);
@@ -174,7 +173,7 @@ async fn scenario() {
     t.k.update(&author, "Metric", started, obj(json!({"definition": defined_again})), None).await.expect("the metric changed");
     assert_eq!(t.get("Metric", started).await["status"], "Draft");
     t.next_day(kr).await;
-    ferrum_app_objectives::maintenance(&t.k).await.expect("upkeep");
+    ferrum_app_objectives::maintenance(&t.k, t.tenant).await.expect("upkeep");
     let r = t.get("KeyResult", kr).await;
     assert!(r["measure_error"].as_str().is_some_and(|e| e.contains("Projects started is not certified now")), "{r:?}");
     assert_eq!((dec(&r["current_value"]), t.check_ins(kr).await), (3.0, 3), "nothing measured");
@@ -186,7 +185,7 @@ async fn scenario() {
     // Certified again, it is measured as it is defined now: one project of that name.
     t.k.run_action(&steward, "Metric", started, "certify", Value::Null).await.expect("certified again");
     t.next_day(kr).await;
-    ferrum_app_objectives::maintenance(&t.k).await.expect("upkeep");
+    ferrum_app_objectives::maintenance(&t.k, t.tenant).await.expect("upkeep");
     let r = t.get("KeyResult", kr).await;
     assert_eq!((dec(&r["current_value"]), r["measure_error"].as_str()), (1.0, None), "{r:?}");
 
@@ -224,7 +223,7 @@ async fn scenario() {
     // Without a rate by its day, Metrics gives no value, and the key result says why rather than a sum of rupees.
     t.insert(&a, "Project", json!({"project_name": "Budgeted before rates", "company": company.to_string(), "budget": "10", "start_date": "1999-12-31"})).await;
     t.next_day(raised).await;
-    ferrum_app_objectives::maintenance(&t.k).await.expect("upkeep");
+    ferrum_app_objectives::maintenance(&t.k, t.tenant).await.expect("upkeep");
     let r = t.get("KeyResult", raised).await;
     assert!(r["measure_error"].as_str().is_some_and(|e| e.contains("no exchange rate from INR to USD on or before 1999-12-31")), "{r:?}");
     assert_eq!(dec(&r["current_value"]), 100.0, "nothing measured that day");

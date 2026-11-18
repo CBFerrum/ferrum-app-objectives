@@ -213,9 +213,6 @@ async fn measure_today(k: &Kernel, ctx: &Ctx, tx: &mut Tx, kr: Uuid) -> Result<b
 /// checked in by hand whose check-in is due, once until another is.
 pub(crate) async fn upkeep(k: &Kernel, tenant: Uuid) -> Result<()> {
     let schema = k.registry.schema(tenant).await?;
-    if !schema.packages.iter().any(|p| p == "objectives") {
-        return Ok(());
-    }
     // Measured from the records: by a query of its own, or by a metric with Metrics' connector.
     let measured = if schema.packages.iter().any(|p| p == crate::CONNECTOR_PACKAGE) {
         "(jsonb_typeof(kr.measure) is not distinct from 'object' or kr.metric is not null)"
