@@ -114,7 +114,6 @@ async fn scenario() {
     ferrum_app_objectives::register(&mut hooks);
     let k = Kernel::boot(db, catalog, hooks, KernelSettings::default(), None).await.expect("boot");
     ferrum_domain::maintenance(&k).await.expect("partitions");
-    ferrum_app_erp::maintenance(&k).await.expect("partitions");
     let tenant = k
         .create_tenant(NewTenant {
             slug: "goals".into(),
@@ -296,12 +295,12 @@ async fn scenario() {
     // Each day by itself, once, its confidence the last check-in's.
     t.insert(&a, "Project", json!({"project_name": "Open a third shop", "company": company.to_string()})).await;
     t.next_day(started, today).await;
-    ferrum_app_objectives::maintenance(&t.k).await.expect("upkeep");
+    ferrum_app_objectives::maintenance(&t.k, t.tenant).await.expect("upkeep");
     let r = t.get("KeyResult", started).await;
     assert_eq!((dec(&r["current_value"]), dec(&r["progress"]), r["confidence"].as_str()), (3.0, 75.0, Some("At Risk")), "the day's measure");
     assert_eq!(t.check_ins(started).await.len(), 3);
     t.next_day(started, today).await;
-    ferrum_app_objectives::maintenance(&t.k).await.expect("upkeep");
+    ferrum_app_objectives::maintenance(&t.k, t.tenant).await.expect("upkeep");
     assert_eq!(t.check_ins(started).await.len(), 3, "tried once a day");
     // One that cannot be measured keeps why, and leaves the others measured.
     let analyst = t.user("analyst@goals.test", &["Objectives Owner"]).await;
@@ -310,7 +309,7 @@ async fn scenario() {
     let counted = uid(&t.insert(&owner, "KeyResult", theirs).await["id"]);
     t.k.set_user_active(&t.admin, analyst.user, false).await.expect("deactivated");
     t.next_day(counted, today).await;
-    ferrum_app_objectives::maintenance(&t.k).await.expect("upkeep");
+    ferrum_app_objectives::maintenance(&t.k, t.tenant).await.expect("upkeep");
     let r = t.get("KeyResult", counted).await;
     assert!(r["measure_error"].as_str().is_some_and(|e| e.contains("not an active person here")), "{r:?}");
     assert_eq!((r["measured_on"].as_str(), t.check_ins(counted).await.len()), (Some(today.to_string().as_str()), 1));
@@ -322,11 +321,11 @@ async fn scenario() {
     let fresh = uid(&t.insert(&owner, "KeyResult", survey("Just set", 7)).await["id"]);
     t.insert(&owner, "CheckIn", check(nps, today - Duration::days(8), "4", "On Track")).await;
     t.insert(&owner, "CheckIn", check(quiet, today - Duration::days(30), "4", "On Track")).await;
-    ferrum_app_objectives::maintenance(&t.k).await.expect("upkeep");
+    ferrum_app_objectives::maintenance(&t.k, t.tenant).await.expect("upkeep");
     assert_eq!(t.reminders(nps).await, 1, "eight days since its last check-in, of every seven");
     assert_eq!(t.get("KeyResult", nps).await["reminded_on"].as_str(), Some(today.to_string().as_str()));
     assert_eq!((t.reminders(quiet).await, t.reminders(fresh).await, t.reminders(started).await), (0, 0, 0), "never asked, not yet due, measured");
-    ferrum_app_objectives::maintenance(&t.k).await.expect("upkeep");
+    ferrum_app_objectives::maintenance(&t.k, t.tenant).await.expect("upkeep");
     assert_eq!(t.reminders(nps).await, 1, "once until another check-in is due");
     t.insert(&owner, "CheckIn", check(nps, today, "5", "On Track")).await;
     assert_eq!(t.get("KeyResult", nps).await["last_check_in"].as_str(), Some(today.to_string().as_str()));
