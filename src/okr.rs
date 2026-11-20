@@ -85,6 +85,28 @@ pub(crate) fn progress(kind: &str, start: Decimal, target: Decimal, current: Dec
                 Decimal::ZERO
             }
         }
+        // A level to hold: all or nothing by the latest value.
+        "Keep Above" => {
+            if current >= target {
+                hundred
+            } else {
+                Decimal::ZERO
+            }
+        }
+        "Keep Below" => {
+            if current <= target {
+                hundred
+            } else {
+                Decimal::ZERO
+            }
+        }
+        "Stay Within" => {
+            if start <= current && current <= target {
+                hundred
+            } else {
+                Decimal::ZERO
+            }
+        }
         _ if target == start => Decimal::ZERO,
         _ => (current - start) / (target - start) * hundred,
     };
@@ -578,6 +600,7 @@ impl DocHook for KeyResultHook {
         match s(doc, "kind") {
             Some("Increase") if target <= start => return Err(Error::field("target_value", "an increase aims above where it starts")),
             Some("Decrease") if target >= start => return Err(Error::field("target_value", "a decrease aims below where it starts")),
+            Some("Stay Within") if target <= start => return Err(Error::field("target_value", "the highest value allowed is above the lowest")),
             _ => {}
         }
         if !hc.ctx.is_system && closed(hc.tx, hc.ctx.tenant, id(doc, "objective")).await? {
@@ -767,6 +790,16 @@ mod tests {
         assert_eq!(progress("Increase", v("100"), v("200"), v("90")), v("0.0"), "below the start is nothing");
         assert_eq!(progress("Decrease", v("30"), v("10"), v("25")), v("25.0"));
         assert_eq!((progress("Milestone", v("0"), v("1"), v("0")), progress("Milestone", v("0"), v("1"), v("1"))), (v("0.0"), v("100.0")));
+    }
+
+    #[test]
+    fn a_level_held_is_all_or_nothing() {
+        let v = |s: &str| s.parse::<Decimal>().unwrap();
+        let (hold, lost) = (v("100.0"), v("0.0"));
+        assert_eq!([("99.95", hold), ("99.8", lost), ("99.9", hold)].map(|(c, _)| progress("Keep Above", v("0"), v("99.9"), v(c))), [hold, lost, hold]);
+        assert_eq!([progress("Keep Below", v("0"), v("5"), v("5")), progress("Keep Below", v("0"), v("5"), v("6"))], [hold, lost]);
+        let within = |c: &str| progress("Stay Within", v("20"), v("25"), v(c));
+        assert_eq!([within("20"), within("22.5"), within("25"), within("19.99"), within("25.01")], [hold, hold, hold, lost, lost]);
     }
 
     #[test]

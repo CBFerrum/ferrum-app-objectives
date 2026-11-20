@@ -71,9 +71,10 @@
     - {name: objective, type: link, to: Objective, required: true, in_list: true, in_filter: true}
     - {name: objective_private, type: check, fetch_from: objective.private, read_only: true, hidden: true, no_copy: true, description: "Its objective is private (kept in step with it)"}
     - {name: title, type: data, required: true, in_list: true}
-    - {name: kind, type: select, options: [Increase, Decrease, Milestone], default: Increase, required: true, in_list: true}
-    - {name: start_value, type: decimal, default: 0}
-    - {name: target_value, type: decimal, default: 1}
+    - {name: kind, type: select, options: [Increase, Decrease, Milestone, Keep Above, Keep Below, Stay Within], default: Increase, required: true, in_list: true,
+       description: "Increase and Decrease go from the start to the target. Milestone is done or not. Keep Above, Keep Below and Stay Within hold a level: 100% while the latest check-in holds it, 0% while it does not"}
+    - {name: start_value, type: decimal, default: 0, description: "Where it starts. For Stay Within: the lowest value allowed"}
+    - {name: target_value, type: decimal, default: 1, description: "Where it is to get to, or the level to hold. For Stay Within: the highest value allowed"}
     - {name: current_value, type: decimal, read_only: true, no_copy: true, in_list: true}
     - {name: unit, type: data, description: "customers, %, days"}
     - {name: weight, type: decimal, default: 1, in_list: true, description: "How much it counts towards its objective's progress, against the others there; 0 for not at all"}

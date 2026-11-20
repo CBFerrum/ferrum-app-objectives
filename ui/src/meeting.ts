@@ -11,6 +11,9 @@ export interface Row {
 export function progressOf(kind: string, start: number, target: number, current: number): number {
   let p: number;
   if (kind === "Milestone") p = current >= 1 ? 100 : 0;
+  else if (kind === "Keep Above") p = current >= target ? 100 : 0;
+  else if (kind === "Keep Below") p = current <= target ? 100 : 0;
+  else if (kind === "Stay Within") p = start <= current && current <= target ? 100 : 0;
   else if (target === start) p = 0;
   else p = ((current - start) / (target - start)) * 100;
   return Math.round(Math.min(100, Math.max(0, p)) * 10) / 10;

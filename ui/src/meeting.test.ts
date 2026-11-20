@@ -8,6 +8,12 @@ describe("the review meeting", () => {
     expect([progressOf("Milestone", 0, 1, 1), progressOf("Milestone", 0, 1, 0), progressOf("Increase", 5, 5, 9), progressOf("Increase", 0, 10, 20)]).toEqual([100, 0, 0, 100]);
   });
 
+  it("holds a level as the server does", () => {
+    expect([progressOf("Keep Above", 0, 99.9, 99.95), progressOf("Keep Above", 0, 99.9, 99.8), progressOf("Keep Above", 0, 99.9, 99.9)]).toEqual([100, 0, 100]);
+    expect([progressOf("Keep Below", 0, 5, 5), progressOf("Keep Below", 0, 5, 6)]).toEqual([100, 0]);
+    expect([20, 22.5, 25, 19.99, 25.01].map((c) => progressOf("Stay Within", 20, 25, c))).toEqual([100, 100, 100, 0, 0]);
+  });
+
   it("reads a key result's value on a day from its check-ins", () => {
     const kr: Row = { id: "k", kind: "Increase", start_value: "10" };
     const checkIns: Row[] = [

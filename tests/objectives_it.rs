@@ -425,6 +425,32 @@ async fn scenario() {
     assert_eq!(t.progress("Objective", rolled).await, 75.0, "opened, it counts: (100 + 50) / 2");
     t.k.update(&owner, "Objective", hidden, obj(json!({"private": true})), None).await.expect("private again");
     assert_eq!(t.progress("Objective", rolled).await, 100.0, "private again, it leaves the figure");
+    // Key results that hold a level: all or nothing by the latest check-in.
+    let level = uid(&t.insert(&owner, "Objective", objective("Stay up", None, q_start, q_end)).await["id"]);
+    let uptime = uid(&t
+        .insert(
+            &owner,
+            "KeyResult",
+            json!({"objective": level.to_string(), "title": "Uptime", "kind": "Keep Above", "start_value": "0", "target_value": "99.9"}),
+        )
+        .await["id"]);
+    assert_eq!(t.progress("KeyResult", uptime).await, 0.0, "a level not yet held");
+    t.insert(&owner, "CheckIn", check(uptime, today, "99.95", "On Track")).await;
+    assert_eq!((t.progress("KeyResult", uptime).await, t.progress("Objective", level).await), (100.0, 100.0));
+    t.insert(&owner, "CheckIn", check(uptime, today, "99.8", "At Risk")).await;
+    assert_eq!((t.progress("KeyResult", uptime).await, t.progress("Objective", level).await), (0.0, 0.0), "the latest check-in no longer holds it");
+    let band =
+        t.k.insert(
+            &owner,
+            "KeyResult",
+            obj(json!({"objective": level.to_string(), "title": "Band", "kind": "Stay Within", "start_value": "25", "target_value": "20"})),
+        )
+        .await;
+    refused(band, "invalid", "the highest value allowed is above the lowest");
+    let defects = uid(&t
+        .insert(&owner, "KeyResult", json!({"objective": level.to_string(), "title": "Defects", "kind": "Keep Below", "start_value": "0", "target_value": "5"}))
+        .await["id"]);
+    assert_eq!(t.progress("KeyResult", defects).await, 100.0, "a Keep Below that starts under its level holds it");
     // Closing the cycle closes and scores what is in it, and nothing in it changes after.
     let out = t.k.run_action(&owner, "OkrCycle", q, "close_cycle", Value::Null).await.expect("closed");
     assert_eq!(out["objectives_closed"], json!(4), "{out}");
