@@ -110,7 +110,7 @@ Objectives is the goals app for Ferrum: an objective tree for a company, its tea
 - **Status: Draft, Active, Closed.** A draft is being written and takes no check-ins. An active objective does not go back to draft. It closes only by **Close It**, which scores it. A closed objective is kept as it closed.
 - **Weights.** An objective counts towards the one it is aligned to by its weight (1 unless set, 0 counts for nothing, never negative).
 - **Rolled-up progress.** Progress is the average of its key results' progress and of the objectives aligned to it, each by weight, kept current up the tree as any of them moves.
-- **Private objectives.** Tick **Private** and only the owner and the people listed on the objective (`people`) read it, its key results and its check-ins. Everyone else with an Objectives role still reads the open ones.
+- **Private objectives.** Tick **Private** and only the owner and the people listed on the objective (`people`) read it, its key results and its check-ins. Everyone else with an Objectives role still reads the open ones. A private objective takes no part in the progress of the objective it is aligned to, which everyone reads; its own progress is its key results' and the open objectives under it.
 - **Portfolio.** An objective names the portfolio behind it (from Projects).
 - **Discussion and history.** Like every Ferrum record, an objective has a discussion, an activity trail, attachments, tags and followers.
 

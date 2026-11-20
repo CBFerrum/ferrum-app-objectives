@@ -402,6 +402,29 @@ async fn scenario() {
     t.k.get(&viewer, "Objective", team_goal, false).await.expect("an open one is everyone's to follow");
     t.k.update(&owner, "Objective", secret, obj(json!({"private": false})), None).await.expect("opened");
     t.k.get(&viewer, "KeyResult", secret_kr, false).await.expect("opened, its key results with it");
+    // What a private objective leaves in the open. A person with a role but no place on it cannot add key results or
+    // check-ins to it, and its progress takes no part in the objective above it, whose figure everyone reads.
+    let rolled = uid(&t.insert(&owner, "Objective", objective("Open parent", None, q_start, q_end)).await["id"]);
+    let open_kr =
+        uid(&t.insert(&owner, "KeyResult", json!({"objective": rolled.to_string(), "title": "Open", "start_value": "0", "target_value": "10"})).await["id"]);
+    t.insert(&owner, "CheckIn", check(open_kr, today, "10", "On Track")).await;
+    let mut hidden_doc = objective("Private child", Some(rolled), q_start, q_end);
+    hidden_doc.as_object_mut().unwrap().extend(obj(json!({"private": true, "people": [{"person": "insider@goals.test"}]})));
+    let hidden = uid(&t.insert(&owner, "Objective", hidden_doc).await["id"]);
+    let hidden_kr =
+        uid(&t.insert(&owner, "KeyResult", json!({"objective": hidden.to_string(), "title": "Quiet", "start_value": "0", "target_value": "10"})).await["id"]);
+    t.insert(&owner, "CheckIn", check(hidden_kr, today, "5", "On Track")).await;
+    assert_eq!(t.progress("Objective", hidden).await, 50.0, "its own owner still reads its own figure");
+    assert_eq!(t.progress("Objective", rolled).await, 100.0, "a private child's progress is not in the open parent's figure");
+    let key_result_by_outsider =
+        t.k.insert(&other_owner, "KeyResult", obj(json!({"objective": hidden.to_string(), "title": "Planted", "start_value": "0", "target_value": "1"}))).await;
+    assert!(key_result_by_outsider.is_err(), "no key result on a private objective by someone with no place on it: {key_result_by_outsider:?}");
+    let check_in_by_outsider = t.k.insert(&other_owner, "CheckIn", obj(check(hidden_kr, today, "9", "At Risk"))).await;
+    assert!(check_in_by_outsider.is_err(), "no check-in on a private key result by someone with no place on it: {check_in_by_outsider:?}");
+    t.k.update(&owner, "Objective", hidden, obj(json!({"private": false})), None).await.expect("opened");
+    assert_eq!(t.progress("Objective", rolled).await, 75.0, "opened, it counts: (100 + 50) / 2");
+    t.k.update(&owner, "Objective", hidden, obj(json!({"private": true})), None).await.expect("private again");
+    assert_eq!(t.progress("Objective", rolled).await, 100.0, "private again, it leaves the figure");
     // Closing the cycle closes and scores what is in it, and nothing in it changes after.
     let out = t.k.run_action(&owner, "OkrCycle", q, "close_cycle", Value::Null).await.expect("closed");
     assert_eq!(out["objectives_closed"], json!(4), "{out}");

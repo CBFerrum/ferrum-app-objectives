@@ -291,8 +291,9 @@ pub(crate) async fn upkeep(k: &Kernel, tenant: Uuid) -> Result<()> {
     Ok(())
 }
 
-/// An objective's progress from its key results and the objectives aligned to it, then its
-/// parent's, up the tree.
+/// An objective's progress from its key results and the open objectives aligned to it, then its
+/// parent's, up the tree. A private objective is left out of the one above it: that figure is read by people who
+/// may not read the private one, and would show its progress.
 pub(crate) async fn roll_up(k: &Kernel, ctx: &Ctx, tx: &mut Tx, objective: Uuid) -> Result<()> {
     let mut next = Some(objective);
     let mut seen = HashSet::new();
@@ -302,7 +303,7 @@ pub(crate) async fn roll_up(k: &Kernel, ctx: &Ctx, tx: &mut Tx, objective: Uuid)
         }
         let parts: Vec<(Option<Decimal>, Option<Decimal>)> = sqlx::query_as(
             "select progress, weight from e_key_result where tenant_id = $1 and objective = $2 \
-             union all select progress, weight from e_objective where tenant_id = $1 and parent = $2",
+             union all select progress, weight from e_objective where tenant_id = $1 and parent = $2 and not coalesce(private, false)",
         )
         .bind(ctx.tenant)
         .bind(o)
