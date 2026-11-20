@@ -26,8 +26,10 @@
   rules:
     - {name: ends_on, check: "doc.ends_on == null || doc.starts_on == null || doc.ends_on >= doc.starts_on", message: "A cycle cannot end before it starts"}
   actions:
-    - {name: start_cycle, label: Start It, permission: write, condition: "doc.status == 'Planning'"}
-    - {name: close_cycle, label: Close It, permission: write, condition: "doc.status != 'Closed'", confirm: "Close the cycle? Each of its objectives closes with its score, and nothing in it changes after."}
+    - {name: start_cycle, label: Start It, permission: write, condition: "doc.status == 'Planning'",
+       contract: {effect: transactional_action, completion: "The cycle is Active; asked again on an active cycle it is refused", returns: {type: object, properties: {status: {type: string}, objectives_closed: {type: integer}}}}}
+    - {name: close_cycle, label: Close It, permission: write, condition: "doc.status != 'Closed'", confirm: "Close the cycle? Each of its objectives closes with its score, and nothing in it changes after.",
+       contract: {effect: transactional_action, completion: "The cycle is Closed and each objective in it, and each of their key results, is closed with its score and grade; nothing in it changes after", returns: {type: object, properties: {status: {type: string}, objectives_closed: {type: integer}}}}}
   list: {columns: [cycle_name, starts_on, ends_on, status, is_default], sort: starts_on desc}
 
 - name: Objective
@@ -57,7 +59,8 @@
     - {name: grade, type: select, options: [Missed, Progress Made, Achieved], read_only: true, no_copy: true, in_list: true, in_filter: true, description: "Its score against the workspace's grades when it closed"}
     - {name: notes, type: text}
   actions:
-    - {name: close_objective, label: Close It, permission: write, condition: "doc.status == 'Active'"}
+    - {name: close_objective, label: Close It, permission: write, condition: "doc.status == 'Active'",
+       contract: {effect: transactional_action, completion: "The objective is Closed with its progress kept as its score, told on the workspace's scale and graded, and each of its key results scored and graded with it", returns: {type: object, properties: {status: {type: string}, score: {type: string}, score_on_scale: {type: string}, grade: {type: string}}}}}
   list: {columns: [title, owner, parent, cycle, level, ends_on, progress, status], sort: ends_on asc}
 
 - name: KeyResult
@@ -71,9 +74,10 @@
     - {name: objective, type: link, to: Objective, required: true, in_list: true, in_filter: true}
     - {name: objective_private, type: check, fetch_from: objective.private, read_only: true, hidden: true, no_copy: true, description: "Its objective is private (kept in step with it)"}
     - {name: title, type: data, required: true, in_list: true}
-    - {name: kind, type: select, options: [Increase, Decrease, Milestone], default: Increase, required: true, in_list: true}
-    - {name: start_value, type: decimal, default: 0}
-    - {name: target_value, type: decimal, default: 1}
+    - {name: kind, type: select, options: [Increase, Decrease, Milestone, Keep Above, Keep Below, Stay Within], default: Increase, required: true, in_list: true,
+       description: "Increase and Decrease go from the start to the target. Milestone is done or not. Keep Above, Keep Below and Stay Within hold a level: 100% while the latest check-in holds it, 0% while it does not"}
+    - {name: start_value, type: decimal, default: 0, description: "Where it starts. For Stay Within: the lowest value allowed"}
+    - {name: target_value, type: decimal, default: 1, description: "Where it is to get to, or the level to hold. For Stay Within: the highest value allowed"}
     - {name: current_value, type: decimal, read_only: true, no_copy: true, in_list: true}
     - {name: unit, type: data, description: "customers, %, days"}
     - {name: weight, type: decimal, default: 1, in_list: true, description: "How much it counts towards its objective's progress, against the others there; 0 for not at all"}
