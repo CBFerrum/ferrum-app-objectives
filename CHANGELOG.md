@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.0
+
+Package `objectives` 0.3.1 (options and descriptions only; no migration). `ui/dist` rebuilt.
+
+- **Key results that hold a level.** Keep Above, Keep Below and Stay Within (start is the lowest value allowed, target the highest): 100% while
+  the latest check-in holds the level, 0% while it does not, on the server and on the review page alike. Closing an objective grades them by that.
+- **A private objective is left out of the objective above it.** Its progress no longer moves the stored progress of an open parent, which
+  everyone with a role reads. Opening it brings it back in; making it private takes it out again.
+- **Every action has a contract** (Start It, Close It on a cycle, Close It on an objective): effect, what is done, what is returned.
+
 ## 0.10.0
 
 No database or interface change. Needs Ferrum 0.4.0 (apps' upkeep runs one workspace at a time, on whichever replica is free).

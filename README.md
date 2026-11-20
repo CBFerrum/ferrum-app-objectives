@@ -7,7 +7,7 @@
 
 <br>
 
-[![Version](https://img.shields.io/badge/version-0.10.0-15803d?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.11.0-15803d?style=flat-square)](CHANGELOG.md)
 [![Licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-blue?style=flat-square)](LICENSE)
 [![Ferrum platform](https://img.shields.io/badge/runs%20on-Ferrum-2f5bea?style=flat-square)](https://github.com/CBFerrum/Ferrum)
 ![Rust](https://img.shields.io/badge/Rust-server-b7410e?style=flat-square&logo=rust)
@@ -38,7 +38,7 @@ Objectives is the goals app for Ferrum: an objective tree for a company, its tea
 
 | | |
 |---|---|
-| **Version** | 0.10.0 (package `objectives` 0.3.0; connector `objectives-metrics` 0.1.0) |
+| **Version** | 0.11.0 (package `objectives` 0.3.1; connector `objectives-metrics` 0.1.0) |
 | **Kind** | Its own interface at `/objectives/` (the objective tree and the review page) with Ferrum's records screens for everything else |
 | **What it adds** | 7 entities (Objective, Key Result, Check-in, Cycle, Objectives Settings and two small tables), 2 roles, 1 module, 2 menu pages, 1 notification kind, 1 daily upkeep job; 1 more entity field from the Metrics connector; no reports, no print formats |
 | **Depends on** | Ferrum platform `>=0.4.0, <0.5`; Ferrum Projects `>=0.6` (installing Objectives installs it) |
@@ -291,7 +291,7 @@ Objectives is compared with the OKR and goals products Lattice (Goals), Betterwo
 | Check in by email | ❌ | 🟡² | 🟡² | 🟡² | ✅ | 🟡² |
 | Native mobile apps | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | AI help writing goals | ❌ | ✅ | 🟡² | 🟡² | 🟡² | 🟡² |
-| Key result types beyond increase, decrease, milestone | ❌ | ✅ | ✅ | ✅ | 🟡² | 🟡² |
+| Key result types beyond increase, decrease, milestone | ✅ | ✅ | ✅ | ✅ | 🟡² | 🟡² |
 | Roll unfinished objectives into the next cycle | ❌ | 🟡² | 🟡² | 🟡² | 🟡² | 🟡² |
 | Arabic and Hindi, right to left | ✅ | 🟡² | 🟡² | 🟡² | 🟡² | ✅ |
 | Open source | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
@@ -325,6 +325,7 @@ Objectives is compared with the OKR and goals products Lattice (Goals), Betterwo
 
 ### ✅ Recently shipped
 
+- [x] **0.11.0** Key results that hold a level (Keep Above, Keep Below, Stay Within); a private objective stays out of its parent's progress; contracts on every action.
 - [x] **0.10.0** Upkeep is one workspace's: needs Ferrum 0.4.0.
 - [x] **0.9.1** The review's last check-in written as the day it is; rebuilt on Ferrum-Frontend 06bd1a2 with `mountApp`.
 - [x] **0.8.0** Cycles that close and freeze their objectives; private objectives; drafts; company, team and person levels.

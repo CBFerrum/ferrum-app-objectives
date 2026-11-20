@@ -451,6 +451,22 @@ async fn scenario() {
         .insert(&owner, "KeyResult", json!({"objective": level.to_string(), "title": "Defects", "kind": "Keep Below", "start_value": "0", "target_value": "5"}))
         .await["id"]);
     assert_eq!(t.progress("KeyResult", defects).await, 100.0, "a Keep Below that starts under its level holds it");
+    // Closing grades each held-or-lost key result by its progress (uptime lost: 0, defects held: 100).
+    let band_kr = uid(&t
+        .insert(
+            &owner,
+            "KeyResult",
+            json!({"objective": level.to_string(), "title": "Temperature", "kind": "Stay Within", "start_value": "20", "target_value": "25"}),
+        )
+        .await["id"]);
+    t.insert(&owner, "CheckIn", check(band_kr, today, "22", "On Track")).await;
+    t.k.run_action(&owner, "Objective", level, "close_objective", Value::Null).await.expect("closed");
+    let mut got = vec![];
+    for kr in [uptime, defects, band_kr] {
+        let r = t.get("KeyResult", kr).await;
+        got.push((dec(&r["score"]), r["grade"].as_str().unwrap_or_default().to_string()));
+    }
+    assert_eq!(got, vec![(0.0, "Missed".to_string()), (100.0, "Achieved".to_string()), (100.0, "Achieved".to_string())]);
     // Closing the cycle closes and scores what is in it, and nothing in it changes after.
     let out = t.k.run_action(&owner, "OkrCycle", q, "close_cycle", Value::Null).await.expect("closed");
     assert_eq!(out["objectives_closed"], json!(4), "{out}");
